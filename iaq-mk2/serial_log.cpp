@@ -1,14 +1,28 @@
 #include "serial_log.h"
 
 #include <Arduino.h>
+#include <USB/PluggableUSBSerial.h>  // _SerialUSB
 
 #include "air_status.h"
 #include "co2_input.h"
 #include "config.h"
 #include "pm_input.h"
 #include "text_format.h"
+#include "watchdog.h"
 
 namespace {
+// The IDE/arduino-cli request a reset into the bootloader by opening the port at
+// 1200 baud. The core normally handles that in its own thread by calling the
+// bootrom's reset_usb_boot(), which re-arms the hardware watchdog with a ~10 ms
+// countdown; our regular watchdog kicks would cancel that forever. So the
+// request is handled here: stop kicking, wait for the host to close the port
+// (as the core does), then enter the bootloader.
+volatile bool g_bootloaderRequested = false;
+
+void onLineCoding(int baud, int /*bits*/, int /*parity*/, int /*stop*/) {
+  if (baud == 1200) g_bootloaderRequested = true;
+}
+
 void kv(const char* key, const char* value) {
   Serial.print(' ');
   Serial.print(key);
@@ -28,7 +42,19 @@ void kvFixed(const char* key, float value, uint8_t decimals) {
 }
 }  // namespace
 
-void serial_log::begin() { Serial.begin(cfg::SERIAL_BAUD); }
+void serial_log::begin() {
+  Serial.begin(cfg::SERIAL_BAUD);
+  _SerialUSB.attach(onLineCoding);  // the USB CDC object behind Serial; replaces the core's handler
+}
+
+void serial_log::update() {
+  if (!g_bootloaderRequested) return;
+  watchdog::suspend();
+  Serial.println("[boot] bootloader requested, resetting");
+  const uint32_t start = millis();
+  while (_SerialUSB.connected() || millis() - start < 200) delay(1);
+  _ontouch1200bps_();  // core variant: reset_usb_boot()
+}
 
 void serial_log::event(const char* tag, const char* message) {
   Serial.print('[');

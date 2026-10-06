@@ -33,5 +33,7 @@ void EPD_2IN9G_Sleep(void);
 // IAQ-MK2 patch: non-blocking refresh support (see EPD_2in9g.cpp).
 void EPD_2IN9G_Display_Start(const UBYTE *Image);
 UBYTE EPD_2IN9G_IsBusy(void);
+UDOUBLE EPD_2IN9G_BusyTimeouts(void);   // busy waits that hit EPD_BUSY_TIMEOUT_MS
+UBYTE EPD_2IN9G_BusyLevel(void);        // raw BUSY pin level (1 = HIGH)
 
 #endif

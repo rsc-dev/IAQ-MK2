@@ -20,6 +20,7 @@ constexpr uint8_t ENS160_ADDRESS = 0x53;   // DFRobot breakout default; 0x52 if 
 
 // ---- Serial ----------------------------------------------------------------
 constexpr uint32_t SERIAL_BAUD = 115200;
+constexpr uint32_t BOOT_SERIAL_DELAY_MS = 2000;   // time for a terminal to attach before the [boot] lines
 constexpr uint32_t PMS_BAUD    = 9600;
 
 // ---- Timing ----------------------------------------------------------------
@@ -29,6 +30,8 @@ constexpr uint32_t DISPLAY_INTERVAL_MS   = 180000;  // Waveshare minimum is 180 
 constexpr uint32_t BOOT_SETTLE_MS        = 3000;    // sensor time before the first screen
 constexpr uint8_t  DISPLAY_FULL_REFRESH_EVERY = 1;  // 1 = always full refresh; N > 1 = fast refresh in between
 constexpr uint16_t DISPLAY_ROTATION      = 90;      // 90 or 270, depending on how the panel is mounted
+constexpr bool     EPD_BUSY_ACTIVE_HIGH   = false;  // Waveshare G panels: BUSY is LOW while busy (verified: LOW for ~300 ms after RST)
+constexpr bool     EPD_SOFTWARE_SPI       = false;  // bit-bang DIN/CLK instead of hardware SPI (diagnostic only)
 constexpr uint32_t EPD_BUSY_TIMEOUT_MS    = 10000;  // vendor init / power-off busy waits
 constexpr uint32_t EPD_REFRESH_TIMEOUT_MS = 45000;  // a full refresh takes ~16 s
 constexpr uint32_t WATCHDOG_TIMEOUT_MS   = 8000;    // RP2040 hardware maximum is ~8.3 s

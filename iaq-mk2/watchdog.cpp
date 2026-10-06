@@ -5,6 +5,7 @@
 
 namespace {
 bool g_started = false;
+bool g_suspended = false;
 }
 
 void watchdog::begin(uint32_t timeoutMs) {
@@ -14,7 +15,9 @@ void watchdog::begin(uint32_t timeoutMs) {
 }
 
 void watchdog::kick() {
-  if (g_started) mbed::Watchdog::get_instance().kick();
+  if (g_started && !g_suspended) mbed::Watchdog::get_instance().kick();
 }
 
-bool watchdog::active() { return g_started; }
+void watchdog::suspend() { g_suspended = true; }
+
+bool watchdog::active() { return g_started && !g_suspended; }

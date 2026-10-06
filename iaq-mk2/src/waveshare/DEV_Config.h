@@ -22,6 +22,7 @@
 #define EPD_BUSY_PIN  cfg::PIN_EPD_BUSY
 #define EPD_PWR_PIN   cfg::PIN_EPD_PWR
 #define EPD_BUSY_TIMEOUT_MS cfg::EPD_BUSY_TIMEOUT_MS
+#define EPD_BUSY_IDLE_LEVEL (cfg::EPD_BUSY_ACTIVE_HIGH ? LOW : HIGH)   // pin level when the panel is idle
 
 #define GPIO_PIN_SET   1
 #define GPIO_PIN_RESET 0
@@ -31,6 +32,8 @@
 
 // Delays in slices and kicks the watchdog so vendor busy loops cannot trip it.
 void DEV_Delay_ms(uint32_t ms);
+// Diagnostics: logs BUSY pin transitions with a timestamp (called from delays and from loop()).
+void DEV_Busy_Trace(void);
 
 UBYTE DEV_Module_Init(void);
 void DEV_SPI_WriteByte(UBYTE data);

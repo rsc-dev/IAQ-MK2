@@ -42,6 +42,10 @@ void refreshDisplay(uint32_t nowMs) {
   if (epaper.requestRefresh(frameBuffer, full)) {
     ++displayRequests;
     serial_log::event("epd", full ? "refresh started (full)" : "refresh started (fast)");
+    serial_log::eventValue("epd", "init ms=", epaper.lastInitMs());
+    serial_log::eventValue("epd", "busy-wait timeouts so far=", epaper.busyTimeouts());
+    serial_log::event("epd", epaper.busyAssertedAfterStart() ? "panel busy after refresh cmd (good)"
+                                                              : "panel NOT busy after refresh cmd (check BUSY wiring/polarity)");
   } else {
     serial_log::event("warn", "display busy, refresh skipped");
   }
@@ -51,7 +55,7 @@ void refreshDisplay(uint32_t nowMs) {
 void setup() {
   serial_log::begin();
   watchdog::begin(cfg::WATCHDOG_TIMEOUT_MS);
-  delay(500);  // give a connected terminal a moment; never wait for one
+  delay(cfg::BOOT_SERIAL_DELAY_MS);  // give a connected terminal a moment; never wait for one
 
   serial_log::event("boot", "IAQ-MK2 air quality station");
   serial_log::event("boot", watchdog::active() ? "watchdog armed" : "watchdog unavailable");
@@ -64,6 +68,7 @@ void setup() {
   co2_input::begin();
   epaper.begin();
   serial_log::event("boot", "PMS7003 UART, SEN0219 PWM capture and e-paper initialised");
+  serial_log::event("boot", epaper.busyLevelAtRest() ? "e-paper BUSY pin at rest: HIGH" : "e-paper BUSY pin at rest: LOW");
 
   // Let the fast sensors deliver first values before the boot screen.
   const uint32_t settleStart = millis();
@@ -83,9 +88,11 @@ void setup() {
 void loop() {
   const uint32_t now = millis();
   watchdog::kick();
+  serial_log::update();
 
   pollInputs(now);
 
+  epaper.trace();
   if (epaper.update(now)) {
     serial_log::eventValue("epd", epaper.lastTimedOut() ? "refresh TIMED OUT after ms=" : "refresh done, ms=",
                            epaper.lastDurationMs());
@@ -100,4 +107,7 @@ void loop() {
     lastDisplayMs = now;
     refreshDisplay(now);
   }
+
+  // Yield to the mbed RTOS once per iteration (USB, timers, idle thread).
+  delay(1);
 }

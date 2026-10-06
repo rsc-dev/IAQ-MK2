@@ -81,7 +81,7 @@ void EPD_2IN9G_ReadBusy(void)
 {
     Debug("e-Paper busy\r\n");
     DEV_Delay_ms(100);
-    while(DEV_Digital_Read(EPD_BUSY_PIN)) {      //LOW: idle, HIGH: busy
+    while(DEV_Digital_Read(EPD_BUSY_PIN) != EPD_BUSY_IDLE_LEVEL) {   // IAQ-MK2 patch: polarity from config
         DEV_Delay_ms(100);
     }
     Debug("e-Paper busy release\r\n");
@@ -91,18 +91,31 @@ void EPD_2IN9G_ReadBusy(void)
 function :	Wait until the busy_pin goes LOW
 parameter:
 ******************************************************************************/
+static UDOUBLE g_busyTimeouts = 0;   // IAQ-MK2 patch: diagnostics
+
 static void EPD_2IN9G_ReadBusyH(void)
 {
-    // IAQ-MK2 patch: bounded wait. BUSY is LOW while the panel is busy.
+    // IAQ-MK2 patch: bounded wait; idle level comes from EPD_BUSY_IDLE_LEVEL.
     DEV_Delay_ms(100);
     UDOUBLE waited_ms = 100;
-    while(!DEV_Digital_Read(EPD_BUSY_PIN)) {
+    while(DEV_Digital_Read(EPD_BUSY_PIN) != EPD_BUSY_IDLE_LEVEL) {
         DEV_Delay_ms(5);
         waited_ms += 5;
         if (waited_ms > EPD_BUSY_TIMEOUT_MS) {
+            g_busyTimeouts++;
             return;
         }
     }
+}
+
+UDOUBLE EPD_2IN9G_BusyTimeouts(void)
+{
+    return g_busyTimeouts;
+}
+
+UBYTE EPD_2IN9G_BusyLevel(void)
+{
+    return DEV_Digital_Read(EPD_BUSY_PIN) ? 1 : 0;   // raw pin level
 }
 
 /******************************************************************************
@@ -343,7 +356,7 @@ void EPD_2IN9G_Display_Start(const UBYTE *Image)
 
 UBYTE EPD_2IN9G_IsBusy(void)
 {
-    return DEV_Digital_Read(EPD_BUSY_PIN) ? 0 : 1;   // LOW = busy
+    return DEV_Digital_Read(EPD_BUSY_PIN) == EPD_BUSY_IDLE_LEVEL ? 0 : 1;
 }
 
 /******************************************************************************
