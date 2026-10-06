@@ -1,0 +1,13 @@
+# arduino-cli build profile. Usage from the repo root:
+#   arduino-cli compile --profile nanorp2040 iaq-mk2
+#   arduino-cli upload  --profile nanorp2040 -p /dev/ttyACM0 iaq-mk2
+profiles:
+  nanorp2040:
+    fqbn: arduino:mbed_nano:nanorp2040connect
+    platforms:
+      - platform: arduino:mbed_nano (4.5.0)
+    libraries:
+      - Adafruit BME680 Library (2.0.6)
+      - Adafruit Unified Sensor (1.1.15)
+      - Adafruit BusIO (1.17.4)
+      - DFRobot_ENS160 (1.0.1)
