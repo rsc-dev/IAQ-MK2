@@ -76,8 +76,9 @@ void net::update(uint32_t nowMs) {
         g_lastSyncMs = 0;
         g_lastSyncMs = 0;
         logConnected();
-      } else if (status == WL_CONNECT_FAILED || status == WL_NO_SSID_AVAIL ||
-                 nowMs - g_attemptStartMs > cfg::WIFI_CONNECT_WINDOW_MS) {
+      } else if (nowMs - g_attemptStartMs > cfg::WIFI_CONNECT_WINDOW_MS) {
+        // Status values such as WL_NO_SSID_AVAIL are transient while the module scans,
+        // so only the time window decides; the final status goes into the log.
         WiFi.disconnect();
         startBackoff(nowMs, status == WL_NO_SSID_AVAIL ? "network not found, retry in s=" : "connect failed, retry in s=");
       }
