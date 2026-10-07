@@ -33,6 +33,22 @@ constexpr uint32_t EPD_BUSY_TIMEOUT_MS    = 3000;   // vendor init busy waits (S
 constexpr uint32_t EPD_REFRESH_TIMEOUT_MS = 45000;  // a full refresh takes ~14-16 s
 constexpr uint32_t WATCHDOG_TIMEOUT_MS   = 8000;    // RP2040 hardware maximum is ~8.3 s
 
+// ---- Network and forecast --------------------------------------------------
+constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS = 1000;      // per WiFi.begin() call; status is polled afterwards
+constexpr uint32_t WIFI_CONNECT_WINDOW_MS  = 30000;     // give up on an attempt after this
+constexpr uint32_t WIFI_RETRY_MIN_MS       = 10000;     // exponential backoff between attempts
+constexpr uint32_t WIFI_RETRY_MAX_MS       = 600000;
+constexpr uint32_t WIFI_POLL_MS            = 500;       // status / NTP polling cadence
+constexpr uint32_t TIME_SYNC_INTERVAL_MS   = 60000;     // re-read the NTP epoch from the NINA
+constexpr const char* WEATHER_HOST = "api.met.no";
+constexpr const char* WEATHER_PATH = "/weatherapi/locationforecast/2.0/compact?lat=54.468&lon=18.495";  // Gdynia Wielki Kack
+constexpr const char* WEATHER_USER_AGENT = "IAQ-MK2/1.0 github.com/rsc-dev/IAQ-MK2";
+constexpr uint32_t WEATHER_INTERVAL_MS     = 3600000;   // MET Norway asks not to poll faster than Expires (~30 min)
+constexpr uint32_t WEATHER_RETRY_MS        = 600000;    // after a failed fetch
+constexpr uint32_t WEATHER_STALE_MS        = 10800000;  // 3 h without a good reply -> "--"
+constexpr uint32_t WEATHER_READ_TIMEOUT_MS = 5000;      // no byte for this long aborts a fetch
+constexpr uint32_t WEATHER_FETCH_TIMEOUT_MS = 30000;    // whole request
+
 // ---- Warm-up and staleness ------------------------------------------------
 constexpr uint32_t CO2_WARMUP_MS = 180000;  // SEN0219: 1 min preheat nominal, 3 min for stable output
 constexpr uint32_t CO2_STALE_MS  = 5000;    // PWM cycle is ~1 s

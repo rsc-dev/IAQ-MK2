@@ -32,7 +32,8 @@ _CAPTURE_STAMP = re.compile(r"^\d+(\.\d+)?s\s+(.*)$")
 COLUMNS: list[tuple[str, int]] = [
     ("t", 7), ("status", 6), ("co2", 5), ("co2_state", 9), ("pm1", 4), ("pm25", 4), ("pm10", 4),
     ("pm_state", 8), ("aqi", 3), ("tvoc", 5), ("eco2", 5), ("ens_state", 9), ("temp", 5),
-    ("rh", 5), ("press", 6), ("gas", 6), ("env_state", 9),
+    ("rh", 5), ("press", 6), ("gas", 6), ("env_state", 9), ("wifi", 10), ("time", 5),
+    ("wx_temp", 7), ("wx_sym", 8), ("wx_rain6h", 9), ("wx_state", 8),
 ]
 
 

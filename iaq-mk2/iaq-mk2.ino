@@ -1,7 +1,8 @@
 /*
  * IAQ-MK2: indoor air-quality station.
  * Arduino Nano RP2040 Connect + BME680 + ENS160 + PMS7003 + SEN0219 +
- * Waveshare 2.9" e-Paper (B) V4. See README.md for wiring and build steps.
+ * Waveshare 2.9" e-Paper (B) V4, WiFi for the MET Norway forecast and NTP time.
+ * See README.md for wiring and build steps.
  *
  * loop() is cooperative: inputs update `readings`, the dashboard and the
  * serial log are pure functions of it, and the e-paper refresh is polled.
@@ -13,11 +14,13 @@
 #include "dashboard.h"
 #include "env_sensors.h"
 #include "epaper.h"
+#include "net.h"
 #include "pm_input.h"
 #include "readiness.h"
 #include "readings.h"
 #include "serial_log.h"
 #include "watchdog.h"
+#include "weather.h"
 
 namespace {
 Readings readings;
@@ -35,12 +38,16 @@ void pollInputs(uint32_t nowMs) {
   pm_input::update(nowMs, readings.pm);
   co2_input::update(nowMs, readings.co2);
   env_sensors::update(nowMs, readings.env, readings.ens);
+  net::update(nowMs);
+  readings.time.epoch = net::epoch(nowMs);
+  readings.time.valid = readings.time.epoch != 0;
+  weather::update(nowMs, readings.outdoor);
 }
 
 void refreshDisplay(uint32_t nowMs) {
   const bool full = cfg::DISPLAY_FULL_REFRESH_EVERY <= 1 ||
                     (displayRequests % cfg::DISPLAY_FULL_REFRESH_EVERY) == 0;
-  dashboardRender(readings, uptimeSeconds(nowMs), frameBuffer);
+  dashboardRender(readings, frameBuffer);
   if (epaper.requestRefresh(frameBuffer, full)) {
     ++displayRequests;
     serial_log::event("epd", full ? "refresh started (full)" : "refresh started (fast)");
@@ -70,6 +77,8 @@ void setup() {
   co2_input::begin();
   epaper.begin();
   serial_log::event("boot", "PMS7003 UART, SEN0219 PWM capture and e-paper initialised");
+  net::begin();
+  weather::begin();
   serial_log::event("boot", epaper.busyAtRest() ? "e-paper reports busy at rest (unexpected)" : "e-paper idle at rest");
 
   // Let the fast sensors deliver first values before the boot screen.

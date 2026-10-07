@@ -2,13 +2,17 @@
 
 #include <Arduino.h>
 #include <USB/PluggableUSBSerial.h>  // _SerialUSB
+#include <string.h>
 
 #include "air_status.h"
+#include "clock.h"
 #include "co2_input.h"
 #include "config.h"
+#include "net.h"
 #include "pm_input.h"
 #include "text_format.h"
 #include "watchdog.h"
+#include "weather.h"
 
 namespace {
 // The IDE/arduino-cli request a reset into the bootloader by opening the port at
@@ -99,5 +103,23 @@ void serial_log::summary(const Readings& r, uint32_t uptimeSeconds) {
   kvFixed("press", r.env.pressureHpa, 1);
   kvFixed("gas", r.env.gasKOhm, 1);
   kv("env_state", sensorStateName(r.env.state));
+
+  kv("wifi", net::stateName());
+  Serial.print(" rssi=");
+  Serial.print(net::rssi());
+  char clock[8];
+  formatClockWarsaw(clock, sizeof clock, r.time.valid ? r.time.epoch : 0u);
+  kv("time", clock);
+  kvFixed("wx_temp", r.outdoor.tempC, 1);
+  kvFixed("wx_wind", r.outdoor.windMs, 1);
+  char sym[12];
+  strncpy(sym, r.outdoor.symbol, sizeof sym - 1);
+  sym[sizeof sym - 1] = '\0';
+  for (char* c = sym; *c; ++c) if (*c == ' ') *c = '_';
+  kv("wx_sym", sym[0] ? sym : "-");
+  kvFixed("wx_rain6h", r.outdoor.rainNext6hMm, 1);
+  kv("wx_state", sensorStateName(r.outdoor.state));
+  kvUInt("wx_ok", weather::fetchesOk());
+  kvUInt("wx_fail", weather::fetchesFailed());
   Serial.println();
 }

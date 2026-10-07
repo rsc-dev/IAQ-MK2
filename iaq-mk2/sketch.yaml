@@ -11,3 +11,5 @@ profiles:
       - Adafruit Unified Sensor (1.1.15)
       - Adafruit BusIO (1.17.4)
       - DFRobot_ENS160 (1.0.1)
+      - WiFiNINA (2.1.1)
+      - Arduino_SpiNINA (0.0.2)
