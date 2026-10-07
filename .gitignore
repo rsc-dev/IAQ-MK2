@@ -4,3 +4,4 @@ build/
 *.uf2
 *.elf
 *.bin
+iaq-mk2/secrets.h

@@ -107,41 +107,43 @@ void headerWithTime(const Readings& r, const char* hhmm) {
   textRight(left - 8, 1, hhmm, Font16, kBlack);
 }
 
-// ---------------------------------------------------------------- W1: current layout + outdoor line
+// ---------------------------------------------------------------- W1: chosen design
+// Units live in the tile labels; PM1/PM10 sit inside the PM2.5 tile; no GAS; forecast line at the bottom.
 void layoutOutdoorLine(const Readings& r, const Outdoor& o, uint8_t* fb) {
   beginFrame(fb);
   headerWithTime(r, o.updated);
   hLine(0, 295, 19);
   vLine(147, 21, 64);
-  text(6, 23, "CO2", Font12, kBlack);
-  text(154, 23, "PM2.5", Font12, kBlack);
-  char v[12];
-  if (r.co2.state == SensorState::Ok) { formatUInt(v, sizeof v, r.co2.ppm, 1); text(6, 37, v, Font24, ink(co2Level(r.co2))); warnMark(co2Level(r.co2), 6, 62, textWidth(v, Font24), 2); text(6 + textWidth(v, Font24) + 5, 49, "ppm", Font12, kBlack); }
-  else text(6, 37, "--", Font24, kBlack);
-  if (r.pm.state == SensorState::Ok) { formatUInt(v, sizeof v, r.pm.pm25, 1); text(154, 37, v, Font24, ink(pm25Level(r.pm))); warnMark(pm25Level(r.pm), 154, 62, textWidth(v, Font24), 2); text(154 + textWidth(v, Font24) + 5, 49, "ug/m3", Font12, kBlack); }
-  else text(154, 37, "--", Font24, kBlack);
+  text(6, 23, "CO2 ppm", Font12, kBlack);
+  text(154, 23, "PM2.5 ug/m3", Font12, kBlack);
+  char v[12], line[40];
+  if (r.co2.state == SensorState::Ok) { formatUInt(v, sizeof v, r.co2.ppm, 1); text(6, 37, v, Font24, ink(co2Level(r.co2))); warnMark(co2Level(r.co2), 6, 62, textWidth(v, Font24), 2); }
+  else { text(6, 37, "--", Font24, kBlack); text(6 + 34 + 5, 49, r.co2.state == SensorState::Stale ? "no data" : "warm-up", Font12, kBlack); }
+  if (r.pm.state == SensorState::Ok) {
+    formatUInt(v, sizeof v, r.pm.pm25, 1);
+    text(154, 37, v, Font24, ink(pm25Level(r.pm)));
+    warnMark(pm25Level(r.pm), 154, 62, textWidth(v, Font24), 2);
+    std::snprintf(line, sizeof line, "PM1 %u", r.pm.pm1); text(218, 38, line, Font12, kBlack);
+    std::snprintf(line, sizeof line, "PM10 %u", r.pm.pm10); text(218, 52, line, Font12, kBlack);
+  } else { text(154, 37, "--", Font24, kBlack); text(154 + 34 + 5, 49, r.pm.state == SensorState::Stale ? "no data" : "warm-up", Font12, kBlack); }
   hLine(0, 295, 66);
-  char line[40];
-  if (r.pm.state == SensorState::Ok) std::snprintf(line, sizeof line, "PM1 %u  PM10 %u", r.pm.pm1, r.pm.pm10); else std::snprintf(line, sizeof line, "PM1 --  PM10 --");
-  text(6, 70, line, Font12, kBlack);
   if (r.ens.state == SensorState::Ok) {
-    text(154, 70, "AQI ", Font12, kBlack);
+    text(6, 70, "AQI ", Font12, kBlack);
     formatUInt(v, sizeof v, r.ens.aqi, 1);
-    text(182, 70, v, Font12, ink(aqiLevel(r.ens)));
-    warnMark(aqiLevel(r.ens), 182, 82, 7, 1);
+    text(34, 70, v, Font12, ink(aqiLevel(r.ens)));
+    warnMark(aqiLevel(r.ens), 34, 82, 7, 1);
+    text(48, 70, aqiWord(r.ens.aqi), Font12, kBlack);
     std::snprintf(line, sizeof line, "TVOC %u ppb", r.ens.tvocPpb);
-    text(196, 70, line, Font12, kBlack);
-  } else text(154, 70, "AQI -  TVOC --", Font12, kBlack);
+    textRight(290, 70, line, Font12, kBlack);
+  } else text(6, 70, "AQI -  TVOC --", Font12, kBlack);
   if (r.env.state == SensorState::Ok) {
     char n[12];
-    tempText(6, 84, Font12, r.env.temperatureC);
-    formatFixed(n, sizeof n, r.env.humidityPct, 0); std::snprintf(line, sizeof line, "%s %%", n); text(62, 84, line, Font12, kBlack);
-    formatFixed(n, sizeof n, r.env.pressureHpa, 0); std::snprintf(line, sizeof line, "%s hPa", n); text(104, 84, line, Font12, kBlack);
-    formatFixed(n, sizeof n, r.env.gasKOhm, 0); std::snprintf(line, sizeof line, "GAS %s kOhm", n); textRight(290, 84, line, Font12, kBlack);
-  } else text(6, 84, "BME680 --", Font12, kBlack);
-  hLine(0, 295, 98);
-  outdoorLine(102, o, true, false);
-  textRight(290, 118, "forecast: MET Norway", Font8, kBlack);
+    tempText(6, 85, Font16, r.env.temperatureC);
+    formatFixed(n, sizeof n, r.env.humidityPct, 0); std::snprintf(line, sizeof line, "%s %%", n); text(118, 85, line, Font16, kBlack);
+    formatFixed(n, sizeof n, r.env.pressureHpa, 0); std::snprintf(line, sizeof line, "%s hPa", n); textRight(290, 85, line, Font16, kBlack);
+  } else text(6, 85, "BME680 --", Font16, kBlack);
+  hLine(0, 295, 104);
+  outdoorLine(109, o, true, false);
 }
 
 // ---------------------------------------------------------------- W2: three tiles, outdoor temperature as the third
@@ -334,5 +336,6 @@ int main(int argc, char** argv) {
   layoutOutdoorTile(bad(), rain, fb); writePpm(dir + "/layout_W2_outdoor_tile_bad.ppm", fb);
   Readings boot; boot.env = {21.9f, 51.0f, 1008.7f, 12.0f, SensorState::Ok};
   layoutOutdoorTile(boot, none, fb); writePpm(dir + "/layout_W2_outdoor_tile_offline.ppm", fb);
+  layoutOutdoorLine(boot, none, fb); writePpm(dir + "/layout_W1_outdoor_line_offline.ppm", fb);
   return 0;
 }
