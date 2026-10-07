@@ -1,7 +1,12 @@
 # IAQ-MK2
 
 Standalone indoor air-quality station on an Arduino Nano RP2040 Connect with a
-Waveshare 2.9" four-colour e-paper status panel.
+Waveshare 2.9" e-Paper Module (B) V4 status panel (SSD1680, 296 x 128,
+black/white/red, full refresh ~14-16 s).
+
+Verified on the bench on 2026-10-07: all four sensors deliver data and the panel
+refreshes. The panel was originally assumed to be the four-colour 2.9" (G); the
+bring-up log (see "Design notes") shows how it was identified as the (B) V4.
 
 | Sensor | Measures | Interface |
 | --- | --- | --- |
@@ -12,9 +17,11 @@ Waveshare 2.9" four-colour e-paper status panel.
 
 The panel is a snapshot: sensors are sampled continuously, the display is
 refreshed every 3 minutes (the Waveshare minimum) and put to deep sleep in
-between. Colour is used only for status: black = good, yellow = warn, red = bad.
+between. Colour is used only for status: black = good, red marks (underline,
+outlined badge) = warn, red = bad.
 
 ![good](docs/images/dashboard-good.png)
+![warn](docs/images/dashboard-warn.png)
 ![bad](docs/images/dashboard-bad.png)
 ![boot](docs/images/dashboard-boot.png)
 
@@ -33,7 +40,6 @@ only written to the serial log.
 | e-paper | DC | D9 |
 | e-paper | RST | D8 |
 | e-paper | BUSY | D7 |
-| e-paper | PWR | D6 (driven high by the firmware; 3V3 also works) |
 | BME680, ENS160 | SDA / SCL | A4 / A5 (board has 4.7 k pull-ups) |
 | BME680, ENS160 | VCC / GND | 3V3 / GND |
 | PMS7003 | VCC / GND | 5 V / GND |
@@ -42,16 +48,18 @@ only written to the serial log.
 | SEN0219 | VCC / GND | 5 V / GND |
 | SEN0219 | PWM signal | D2 |
 
-Check these three things before powering up; each one silently breaks the
+Check these before powering up a new build; each one silently breaks the
 station if wrong:
 
 1. **5 V rail.** The Nano RP2040 Connect ships with the `VUSB` jumper (SJ1 on
    the underside) open, so the "5V"/VUSB pin supplies nothing. Either solder SJ1
    or power the PMS7003 and SEN0219 from an external 5 V supply with a common
    ground. The 3V3 pin cannot run them.
-2. **PWR pin.** Current Waveshare e-paper modules have nine wires, not eight.
-   PWR switches the panel supply; left floating the panel never answers. The
-   firmware drives D6 high. Tying PWR to 3V3 is an acceptable alternative.
+2. **Panel model.** The vendored driver is for the 2.9" (B) V4 (SSD1680). The
+   V3 of the same module uses a different controller (UC8151) and the
+   four-colour (G) another one again; neither answers this driver. The label on
+   the back of the panel says which one you have. Newer Waveshare modules add a
+   ninth wire, PWR; this module has eight and needs none.
 3. **SEN0219 revision.** DFRobot sold two sensors under this SKU: an older
    analog one (0.4-2 V output) and the current PWM one. This firmware expects
    PWM. Measure the signal pin with the sensor powered: a 3.3 V square wave with
@@ -90,6 +98,10 @@ Open `iaq-mk2/iaq-mk2.ino` and upload. The Waveshare display driver is vendored
 in `iaq-mk2/src/waveshare/` (see its README for what was changed), so no
 e-paper library is needed.
 
+Uploads use the usual 1200-baud touch. Should a build ever leave the board
+un-flashable, press RESET twice within half a second: the board enters the
+bootloader and the next upload works.
+
 Why these libraries: the `ScioSense_ENS160` v1 API is no longer published
 under that name (it survives as "ENS160 - Adafruit Fork"), the official
 `ScioSense_ENS16x` 2.x has a different API, and neither exposes the ENS160
@@ -108,7 +120,8 @@ make -C tests preview  # renders dashboard PNGs into tests/out/ (needs uv)
 
 The dashboard test renders extreme values into a framebuffer with a canary
 behind it to catch out-of-bounds drawing, which the vendor Paint library does
-not guard against.
+not guard against, and checks that the two 1-bit planes sent to the panel
+match the rendered pixels.
 
 ## Serial log
 
@@ -121,13 +134,20 @@ t=312 status=GOOD co2=684 co2_state=ok co2_cycles=309 co2_rejected=1 pm1=5 pm25=
 Sensor states: `init` (nothing received yet), `warmup`, `ok`, `stale` (was ok,
 no data within the timeout), `n/a` (not detected at boot). Events are tagged
 `[boot]`, `[epd]`, `[warn]`, `[err]`. Serial output never blocks when no
-terminal is attached.
+terminal is attached. The first two seconds after boot are a grace period so a
+terminal opened right after upload still catches the `[boot]` lines.
+
+A healthy display refresh logs, in order: `init begin`, two BUSY transitions for
+the hardware reset, `refresh started (full)`, `init ms=~1000`,
+`busy-wait timeouts so far=0`, `panel busy after refresh cmd (good)`,
+`BUSY pin -> HIGH`, and ~16 s later `BUSY pin -> LOW` and `refresh done, ms=~16400`.
 
 ## Configuration
 
 Everything tunable is in `iaq-mk2/config.h`: pins, I2C addresses, intervals,
 warm-up and stale timeouts, thresholds, display rotation (`90` or `270` if the
-image is upside down), full/fast refresh ratio.
+image is upside down), full/fast refresh ratio (the vendor fast mode is not
+verified on this panel; the default is always a full refresh).
 
 Thresholds: CO2 < 800 good, 800-1199 warn, >= 1200 bad. PM2.5 <= 15 good,
 16-35 warn, > 35 bad. ENS160 AQI 1 good, 2 warn, >= 3 bad. Overall status is the
@@ -136,9 +156,11 @@ worst valid metric; `WARMUP` when nothing is valid yet.
 ## Bring-up checklist
 
 1. Upload, open the serial monitor. Expect `[boot] BME680 found`,
-   `[boot] ENS160 found`, then `[epd] refresh started (full)` and after about
-   16 s `[epd] refresh done, ms=...`. A `refresh TIMED OUT` line means the panel
-   did not answer: check PWR, BUSY and the 3V3 supply.
+   `[boot] ENS160 found`, `[boot] e-paper idle at rest`, then
+   `[epd] refresh started (full)` and after about 16 s
+   `[epd] refresh done, ms=...`. A `refresh TIMED OUT` line or `init ms`
+   around 11000 means the panel did not answer: check the panel model, BUSY
+   and the 3V3 supply.
 2. The boot screen appears within ~20 s with `--` placeholders. If it is upside
    down, set `DISPLAY_ROTATION` to 270.
 3. Within a minute `pm_state=ok` (30 s warm-up) and `env_state=ok`. If
@@ -158,12 +180,21 @@ worst valid metric; `WARMUP` when nothing is valid yet.
   hardware facts, review of the original draft, architecture.
 - `loop()` is cooperative and never blocks on the display: the refresh is a
   state machine polled from the loop, so UART frames and PWM cycles keep
-  flowing during the 11-16 s panel update.
+  flowing during the ~16 s panel update. The dashboard is rendered once as a
+  2-bit frame and split into the black and red planes the SSD1680 takes.
 - A hardware watchdog (~8 s) reboots the board on a hang; vendor delays kick it.
+  The RP2040 bootrom implements the 1200-baud upload reset by re-arming this
+  same watchdog with a 10 ms countdown, so an ordinary kick would cancel every
+  upload. The sketch therefore handles the 1200-baud request itself: stop
+  kicking, wait for the host to close the port, enter the bootloader.
 - Vendor quirks worked around: `Paint_DrawString_EN` swaps its colour
   arguments, `Paint_DrawLine`/`Paint_DrawPoint` draw one pixel up-left, and
   `Paint_SetPixel` is off by one at the far edge. The dashboard uses its own
   clipped primitives.
+- How the panel was identified: the G driver got no response beyond BUSY
+  reacting to RST. A probe sending the SSD1680 sequence (SWRESET, RAM setup,
+  both planes, master activation) produced a 16.4 s BUSY period and a visible
+  refresh; the UC8151 sequence of the (B) V3 was never needed.
 
 ## Limitations and next steps
 
@@ -172,4 +203,5 @@ worst valid metric; `WARMUP` when nothing is valid yet.
 - Values are instantaneous; add averaging for PM and CO2 before a long-term
   enclosure build.
 - The SEN0219 analog revision is not supported.
-- Not yet verified on the physical hardware; the compile and host tests pass.
+- The vendor fast-refresh mode (`DISPLAY_FULL_REFRESH_EVERY` > 1) and the
+  display rotation 270 are not verified on hardware.

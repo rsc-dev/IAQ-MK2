@@ -68,7 +68,7 @@ void setup() {
   co2_input::begin();
   epaper.begin();
   serial_log::event("boot", "PMS7003 UART, SEN0219 PWM capture and e-paper initialised");
-  serial_log::event("boot", epaper.busyLevelAtRest() ? "e-paper BUSY pin at rest: HIGH" : "e-paper BUSY pin at rest: LOW");
+  serial_log::event("boot", epaper.busyAtRest() ? "e-paper reports busy at rest (unexpected)" : "e-paper idle at rest");
 
   // Let the fast sensors deliver first values before the boot screen.
   const uint32_t settleStart = millis();

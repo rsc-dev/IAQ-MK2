@@ -5,18 +5,18 @@
 #include "air_status.h"
 #include "config.h"
 #include "text_format.h"
-#include "src/waveshare/EPD_2in9g.h"
+#include "src/waveshare/EPD_2in9b_V4.h"
 #include "src/waveshare/GUI_Paint.h"
 #include "src/waveshare/fonts.h"
 
-static_assert(kFrameBufferSize == ((EPD_2IN9G_WIDTH + 3) / 4) * EPD_2IN9G_HEIGHT, "framebuffer size");
+static_assert(kFrameBufferSize == ((EPD_2IN9B_V4_WIDTH + 3) / 4) * EPD_2IN9B_V4_HEIGHT, "framebuffer size");
+static_assert(kPlaneSize == (EPD_2IN9B_V4_WIDTH / 8) * EPD_2IN9B_V4_HEIGHT, "plane size");
 
 namespace {
 
-constexpr uint8_t kBlack = EPD_2IN9G_BLACK;
-constexpr uint8_t kWhite = EPD_2IN9G_WHITE;
-constexpr uint8_t kYellow = EPD_2IN9G_YELLOW;
-constexpr uint8_t kRed = EPD_2IN9G_RED;
+constexpr uint8_t kBlack = kDashboardBlack;
+constexpr uint8_t kWhite = kDashboardWhite;
+constexpr uint8_t kRed = kDashboardRed;
 
 // ---- Layout (pixels) --------------------------------------------------------
 constexpr int kMargin = 6;
@@ -81,12 +81,11 @@ void drawDegree(int x, int y, uint8_t colour) {
   setPixel(x + 1, y + 2, colour);
 }
 
-uint8_t levelColour(Level level) {
-  switch (level) {
-    case Level::Bad: return kRed;
-    case Level::Warn: return kYellow;
-    default: return kBlack;
-  }
+// The panel has black, white and red only: BAD is red, WARN is black with a red mark.
+uint8_t levelColour(Level level) { return level == Level::Bad ? kRed : kBlack; }
+
+void drawWarnUnderline(int x, int y, int width, int thickness) {
+  fillRect(x, y, x + width - 1, y + thickness - 1, kRed);
 }
 
 // Short hint shown next to "--" when a value is not valid.
@@ -115,10 +114,13 @@ void drawHeader(const Readings& r, uint32_t uptimeSeconds) {
 
   uint8_t fill = kWhite;
   uint8_t ink = kBlack;
-  if (overall == Level::Bad) { fill = kRed; ink = kWhite; }
-  if (overall == Level::Warn) { fill = kYellow; ink = kBlack; }
-  if (fill != kWhite) {
+  if (overall == Level::Bad) {
+    fill = kRed;
+    ink = kWhite;
     fillRect(badgeLeft, badgeTop, badgeRight, badgeBottom, fill);
+  } else if (overall == Level::Warn) {
+    outlineRect(badgeLeft, badgeTop, badgeRight, badgeBottom, kRed);
+    outlineRect(badgeLeft + 1, badgeTop + 1, badgeRight - 1, badgeBottom - 1, kRed);
   } else if (overall == Level::Good) {
     outlineRect(badgeLeft, badgeTop, badgeRight, badgeBottom, kBlack);
   }
@@ -131,12 +133,13 @@ void drawHeader(const Readings& r, uint32_t uptimeSeconds) {
   drawTextRight(badgeLeft - 8, kHeaderTextY + 3, text, Font12, kBlack);
 }
 
-// Big value tile: label, Font24 value in the level colour, Font12 unit.
-void drawTile(int x, const char* label, const char* value, const char* unit, uint8_t valueColour,
+// Big value tile: label, Font24 value (red when BAD, red underline when WARN), Font12 unit.
+void drawTile(int x, const char* label, const char* value, const char* unit, Level level,
               bool valid, SensorState state) {
   drawText(x, kLabelY, label, Font12, kBlack);
   if (valid) {
-    drawText(x, kValueY, value, Font24, valueColour);
+    drawText(x, kValueY, value, Font24, levelColour(level));
+    if (level == Level::Warn) drawWarnUnderline(x, kValueY + (int)Font24.Height + 1, textWidth(value, Font24), 2);
     const int unitX = x + textWidth(value, Font24) + 5;
     drawText(unitX, kValueY + (int)Font24.Height - (int)Font12.Height, unit, Font12, kBlack);
   } else {
@@ -150,11 +153,10 @@ void drawMainTiles(const Readings& r) {
   char value[12];
 
   formatUInt(value, sizeof value, r.co2.ppm, 1);
-  drawTile(kMargin, "CO2", value, "ppm", levelColour(co2Level(r.co2)), r.co2.state == SensorState::Ok, r.co2.state);
+  drawTile(kMargin, "CO2", value, "ppm", co2Level(r.co2), r.co2.state == SensorState::Ok, r.co2.state);
 
   formatUInt(value, sizeof value, r.pm.pm25, 1);
-  drawTile(kRightColumnX, "PM2.5", value, "ug/m3", levelColour(pm25Level(r.pm)), r.pm.state == SensorState::Ok,
-           r.pm.state);
+  drawTile(kRightColumnX, "PM2.5", value, "ug/m3", pm25Level(r.pm), r.pm.state == SensorState::Ok, r.pm.state);
 
   vLine(kDividerX, kRule1Y + 2, kRule2Y - 2);
 }
@@ -182,7 +184,10 @@ void drawSecondaryRows(const Readings& r) {
   drawText(kRightColumnX, kRowAY, "AQI ", Font12, kBlack);
   if (ensOk) {
     formatUInt(num, sizeof num, r.ens.aqi, 1);
-    drawText(kRightColumnX + textWidth("AQI ", Font12), kRowAY, num, Font12, levelColour(aqiLevel(r.ens)));
+    const Level aqi = aqiLevel(r.ens);
+    const int aqiX = kRightColumnX + textWidth("AQI ", Font12);
+    drawText(aqiX, kRowAY, num, Font12, levelColour(aqi));
+    if (aqi == Level::Warn) drawWarnUnderline(aqiX, kRowAY + (int)Font12.Height, textWidth(num, Font12), 1);
     formatUInt(num, sizeof num, r.ens.tvocPpb, 1);
     strcpy(line, "TVOC ");
     strcat(line, num);
@@ -242,7 +247,7 @@ void drawEnvironment(const EnvReading& env) {
 }  // namespace
 
 void dashboardRender(const Readings& r, uint32_t uptimeSeconds, uint8_t* frameBuffer) {
-  Paint_NewImage(frameBuffer, EPD_2IN9G_WIDTH, EPD_2IN9G_HEIGHT, cfg::DISPLAY_ROTATION, kWhite);
+  Paint_NewImage(frameBuffer, EPD_2IN9B_V4_WIDTH, EPD_2IN9B_V4_HEIGHT, cfg::DISPLAY_ROTATION, kWhite);
   Paint_SetScale(4);
   Paint_SelectImage(frameBuffer);
   Paint_Clear(kWhite);
@@ -256,17 +261,52 @@ void dashboardRender(const Readings& r, uint32_t uptimeSeconds, uint8_t* frameBu
   drawEnvironment(r.env);
 }
 
-uint8_t dashboardPixel(const uint8_t* frameBuffer, int x, int y) {
-  if (x < 0 || y < 0 || x >= kDashboardWidth || y >= kDashboardHeight) return kWhite;
-  // Inverse of Paint_SetPixel for rotation 90 / 270 with WidthMemory = 128.
-  int mx, my;
+namespace {
+// Landscape (x, y) -> panel memory (column, row); inverse of Paint_SetPixel for rotation 90 / 270.
+void toMemory(int x, int y, int& mx, int& my) {
   if (cfg::DISPLAY_ROTATION == 90) {
-    mx = EPD_2IN9G_WIDTH - y - 1;
+    mx = EPD_2IN9B_V4_WIDTH - y - 1;
     my = x;
   } else {
     mx = y;
-    my = EPD_2IN9G_HEIGHT - x - 1;
+    my = EPD_2IN9B_V4_HEIGHT - x - 1;
   }
-  const uint8_t byte = frameBuffer[mx / 4 + my * (EPD_2IN9G_WIDTH / 4)];
+}
+
+uint8_t colourAt(const uint8_t* frameBuffer, int mx, int my) {
+  const uint8_t byte = frameBuffer[mx / 4 + my * (EPD_2IN9B_V4_WIDTH / 4)];
   return (uint8_t)((byte >> (6 - 2 * (mx % 4))) & 0x3);
+}
+}  // namespace
+
+uint8_t dashboardPixel(const uint8_t* frameBuffer, int x, int y) {
+  if (x < 0 || y < 0 || x >= kDashboardWidth || y >= kDashboardHeight) return kWhite;
+  int mx, my;
+  toMemory(x, y, mx, my);
+  return colourAt(frameBuffer, mx, my);
+}
+
+void dashboardSplitPlanes(const uint8_t* frameBuffer, uint8_t* blackPlane, uint8_t* redPlane) {
+  constexpr int kBytesPerRow = EPD_2IN9B_V4_WIDTH / 8;
+  for (int my = 0; my < EPD_2IN9B_V4_HEIGHT; ++my) {
+    for (int b = 0; b < kBytesPerRow; ++b) {
+      uint8_t black = 0xFF;
+      uint8_t red = 0xFF;
+      for (int bit = 0; bit < 8; ++bit) {
+        const uint8_t colour = colourAt(frameBuffer, b * 8 + bit, my);
+        const uint8_t mask = (uint8_t)(0x80 >> bit);
+        if (colour == kBlack) black &= (uint8_t)~mask;
+        if (colour == kRed) red &= (uint8_t)~mask;
+      }
+      blackPlane[b + my * kBytesPerRow] = black;
+      redPlane[b + my * kBytesPerRow] = red;
+    }
+  }
+}
+
+uint8_t dashboardPlaneBit(const uint8_t* plane, int x, int y) {
+  if (x < 0 || y < 0 || x >= kDashboardWidth || y >= kDashboardHeight) return 1;
+  int mx, my;
+  toMemory(x, y, mx, my);
+  return (uint8_t)((plane[mx / 8 + my * (EPD_2IN9B_V4_WIDTH / 8)] >> (7 - (mx % 8))) & 0x1);
 }

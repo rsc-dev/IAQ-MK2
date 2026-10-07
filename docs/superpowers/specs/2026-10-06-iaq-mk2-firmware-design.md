@@ -200,3 +200,33 @@ never blocks when no terminal is attached.
 - `make -C tests` builds and runs host unit tests and writes dashboard
   previews (`tests/out/*.png`) for GOOD / WARN / BAD / warm-up scenarios.
 - Hardware bring-up checklist in README (cannot be executed here).
+
+## 7. Addendum: bench findings (2026-10-07)
+
+The design above assumed the Waveshare 2.9" (G) four-colour panel. Bring-up on
+the real hardware changed three things.
+
+1. **Panel identity.** The module has eight wires (no PWR) and did not answer
+   the G command set: BUSY only reacted to RST. A probe with the SSD1680
+   sequence produced a 16.4 s busy period and a visible refresh, so the panel
+   is the 2.9" (B) V4 (SSD1680, black/white/red, BUSY HIGH while busy). The
+   vendored driver is now `EPD_2in9b_V4` with the same non-blocking patch; the
+   dashboard renders a 2-bpp frame and splits it into the black and red planes.
+   Without yellow, WARN is drawn as black with red marks (underline under the
+   value, red-outlined badge); BAD stays red. Sections 2 and 4 are superseded
+   accordingly (no PWR wire, no yellow).
+2. **Watchdog versus upload.** The bootrom's `reset_usb_boot()` (1200-baud touch
+   and double-tap reset) arms the hardware watchdog with a ~10 ms countdown and
+   spins; the loop's kicks reloaded the 8 s timeout and cancelled the reboot,
+   leaving the board un-flashable. The sketch now intercepts the 1200-baud line
+   coding event itself, suspends kicking, waits for the host to close the port
+   and calls the core's `_ontouch1200bps_()`. Reading the watchdog TIME field
+   to detect a foreign countdown was tried first and blocked every kick; it is
+   not used.
+3. **Serial boot grace.** The USB CDC drops output until a terminal attaches,
+   so the first log lines are preceded by a 2 s delay (`BOOT_SERIAL_DELAY_MS`)
+   and `loop()` yields 1 ms per iteration to the RTOS.
+
+Verified on hardware: BME680, ENS160, PMS7003 and SEN0219 all deliver data
+(SEN0219 at the 400 ppm preheat floor during warm-up); full refresh completes
+in ~16.4 s and the panel enters deep sleep; normal uploads work.

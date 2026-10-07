@@ -6,7 +6,6 @@ namespace cfg {
 
 // ---- Pins ------------------------------------------------------------------
 constexpr uint8_t PIN_CO2_PWM  = 2;   // SEN0219 PWM output (3.3 V level)
-constexpr uint8_t PIN_EPD_PWR  = 6;   // e-paper PWR (panel power enable)
 constexpr uint8_t PIN_EPD_BUSY = 7;
 constexpr uint8_t PIN_EPD_RST  = 8;
 constexpr uint8_t PIN_EPD_DC   = 9;
@@ -26,14 +25,12 @@ constexpr uint32_t PMS_BAUD    = 9600;
 // ---- Timing ----------------------------------------------------------------
 constexpr uint32_t ENV_INTERVAL_MS       = 2000;    // BME680 + ENS160 sampling
 constexpr uint32_t LOG_INTERVAL_MS       = 5000;    // serial summary line
-constexpr uint32_t DISPLAY_INTERVAL_MS   = 180000;  // Waveshare minimum is 180 s
+constexpr uint32_t DISPLAY_INTERVAL_MS   = 180000;  // Waveshare minimum is 180 s (2.9" (B) V4, full refresh ~14-16 s)
 constexpr uint32_t BOOT_SETTLE_MS        = 3000;    // sensor time before the first screen
-constexpr uint8_t  DISPLAY_FULL_REFRESH_EVERY = 1;  // 1 = always full refresh; N > 1 = fast refresh in between
+constexpr uint8_t  DISPLAY_FULL_REFRESH_EVERY = 1;  // 1 = always full refresh; N > 1 = vendor fast mode in between (not verified)
 constexpr uint16_t DISPLAY_ROTATION      = 90;      // 90 or 270, depending on how the panel is mounted
-constexpr bool     EPD_BUSY_ACTIVE_HIGH   = false;  // Waveshare G panels: BUSY is LOW while busy (verified: LOW for ~300 ms after RST)
-constexpr bool     EPD_SOFTWARE_SPI       = false;  // bit-bang DIN/CLK instead of hardware SPI (diagnostic only)
 constexpr uint32_t EPD_BUSY_TIMEOUT_MS    = 10000;  // vendor init / power-off busy waits
-constexpr uint32_t EPD_REFRESH_TIMEOUT_MS = 45000;  // a full refresh takes ~16 s
+constexpr uint32_t EPD_REFRESH_TIMEOUT_MS = 45000;  // a full refresh takes ~14-16 s
 constexpr uint32_t WATCHDOG_TIMEOUT_MS   = 8000;    // RP2040 hardware maximum is ~8.3 s
 
 // ---- Warm-up and staleness ------------------------------------------------

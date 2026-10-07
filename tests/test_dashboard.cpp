@@ -62,6 +62,61 @@ TEST(dashboard_warmup_renders_without_valid_data) {
   CHECK(countColour(g.bytes, 0) > 500);
 }
 
+TEST(dashboard_planes_follow_pixels) {
+  GuardedBuffer g;
+  dashboardRender(extreme(), 100, g.bytes);
+  static uint8_t black[kPlaneSize], red[kPlaneSize];
+  dashboardSplitPlanes(g.bytes, black, red);
+  int mismatches = 0;
+  for (int y = 0; y < 128; ++y) {
+    for (int x = 0; x < 296; ++x) {
+      const uint8_t c = dashboardPixel(g.bytes, x, y);
+      if (dashboardPlaneBit(black, x, y) != (c == kDashboardBlack ? 0 : 1)) ++mismatches;
+      if (dashboardPlaneBit(red, x, y) != (c == kDashboardRed ? 0 : 1)) ++mismatches;
+    }
+  }
+  CHECK_EQ(mismatches, 0);
+  CHECK_EQ(countColour(g.bytes, 2), 0);          // yellow never emitted
+}
+
+TEST(dashboard_good_red_plane_is_blank) {
+  Readings r;
+  r.co2.ppm = 650; r.co2.state = SensorState::Ok;
+  r.pm.pm25 = 5; r.pm.state = SensorState::Ok;
+  r.ens.aqi = 1; r.ens.state = SensorState::Ok;
+  GuardedBuffer g;
+  dashboardRender(r, 60, g.bytes);
+  static uint8_t black[kPlaneSize], red[kPlaneSize];
+  dashboardSplitPlanes(g.bytes, black, red);
+  int redInk = 0, blackInk = 0;
+  for (size_t i = 0; i < kPlaneSize; ++i) {
+    if (red[i] != 0xFF) ++redInk;
+    if (black[i] != 0xFF) ++blackInk;
+  }
+  CHECK_EQ(redInk, 0);
+  CHECK(blackInk > 100);
+}
+
+TEST(dashboard_warn_uses_red_marks_not_red_text) {
+  Readings warn;
+  warn.co2.ppm = 950; warn.co2.state = SensorState::Ok;
+  warn.pm.pm25 = 22; warn.pm.state = SensorState::Ok;
+  warn.ens.aqi = 2; warn.ens.state = SensorState::Ok;
+  Readings bad = warn;
+  bad.co2.ppm = 1850; bad.pm.pm25 = 48; bad.ens.aqi = 4;
+  GuardedBuffer gw, gb;
+  dashboardRender(warn, 60, gw.bytes);
+  dashboardRender(bad, 60, gb.bytes);
+  const int redWarn = countColour(gw.bytes, 3);
+  const int redBad = countColour(gb.bytes, 3);
+  CHECK(redWarn > 0);
+  CHECK(redBad > redWarn);
+  // The CO2 value glyphs themselves stay black on WARN: row through the Font24 digits.
+  int redInValueRow = 0;
+  for (int x = 6; x < 80; ++x) if (dashboardPixel(gw.bytes, x, 48) == 3) ++redInValueRow;
+  CHECK_EQ(redInValueRow, 0);
+}
+
 TEST(dashboard_pixel_decoder_matches_rotation) {
   GuardedBuffer g;
   Readings r;
