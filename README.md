@@ -2,7 +2,8 @@
 
 Standalone indoor air-quality station on an Arduino Nano RP2040 Connect with a
 Waveshare 2.9" e-Paper Module (B) V4 status panel (SSD1680, 296 x 128,
-black/white/red, full refresh ~14-16 s).
+black/white/red, full refresh ~14-16 s). Over WiFi it shows the time and the
+Gdynia forecast from MET Norway (the data behind yr.no).
 
 Verified on the bench on 2026-10-07: all four sensors deliver data and the panel
 refreshes. The panel was originally assumed to be the four-colour 2.9" (G); the
@@ -18,7 +19,9 @@ bring-up log (see "Design notes") shows how it was identified as the (B) V4.
 The panel is a snapshot: sensors are sampled continuously, the display is
 refreshed every 3 minutes (the Waveshare minimum) and put to deep sleep in
 between. Colour is used only for status: black = good, red marks (underline,
-outlined badge) = warn, red = bad.
+outlined badge) = warn, red = bad. The bottom line is the outdoor forecast
+(temperature, sky, wind, rain in the next 6 h in red from 0.5 mm); the header
+shows the time of the last refresh.
 
 ![good](docs/images/dashboard-good.png)
 ![warn](docs/images/dashboard-warn.png)
@@ -71,6 +74,37 @@ but use 3.3 V logic on their data pins, so no level shifting is needed. The
 e-paper module is 3.3 V. D13 is also the built-in LED, so it flickers during
 SPI transfers.
 
+## WiFi, time and forecast
+
+Copy `iaq-mk2/secrets.example.h` to `iaq-mk2/secrets.h` (git-ignored) and put
+your SSID and password in it. The station then:
+
+- connects with a short per-attempt timeout and retries with backoff (10 s to
+  10 min); nothing else waits for the network;
+- takes the time from the NINA module's NTP client and shows it as
+  Europe/Warsaw wall clock (CET/CEST rule computed on the board);
+- fetches the MET Norway Locationforecast for Gdynia Wielki Kack
+  (54.468 N, 18.495 E) once an hour over HTTPS, in a worker thread so the
+  TLS handshake never stalls the loop or the watchdog. Point, cadence and
+  User-Agent are in `config.h`.
+
+**The NINA WiFi module needs firmware 3.0.1 or newer.** Older firmware (the
+module shipped with 1.4.8) lacks the HARICA root certificate that api.met.no
+uses, and the TLS connect fails within a second (`[wx] fetch failed (tls
+connect)`). Update it with Arduino's firmware uploader, which also installs
+the current certificate bundle:
+
+```sh
+arduino-fwuploader firmware flash -b arduino:mbed_nano:nanorp2040connect -a /dev/ttyACM0
+```
+
+or from the Arduino IDE: Tools, Firmware Updater. Re-upload the station
+firmware afterwards (the updater leaves a passthrough sketch on the board).
+The firmware version is logged at boot as `[net] x.y.z`.
+
+Forecast data: MET Norway, CC BY 4.0 (https://api.met.no). The panel carries
+no credit by choice; this README is the attribution.
+
 ## Build and upload
 
 ### arduino-cli (reproducible, pinned versions)
@@ -93,6 +127,9 @@ Board: *Arduino Mbed OS Nano Boards* -> *Arduino Nano RP2040 Connect*
 
 - Adafruit BME680 Library 2.0.6 (pulls in Adafruit Unified Sensor, Adafruit BusIO)
 - DFRobot_ENS160 1.0.1
+- WiFiNINA 2.1.1 (pulls in Arduino_SpiNINA)
+
+ArduinoJson 7.4.3 is vendored as a single header under `iaq-mk2/src/ArduinoJson/`.
 
 Open `iaq-mk2/iaq-mk2.ino` and upload. The Waveshare display driver is vendored
 in `iaq-mk2/src/waveshare/` (see its README for what was changed), so no
@@ -180,8 +217,14 @@ Things to know when it reads 3 or higher while CO2 and PM are fine:
 115200 baud. One `key=value` line every 5 s (`LOG_INTERVAL_MS`), e.g.
 
 ```
-t=312 status=GOOD co2=684 co2_state=ok co2_cycles=309 co2_rejected=1 pm1=5 pm25=8 pm10=11 pm_state=ok pm_frames=298 pm_crc_err=0 aqi=1 tvoc=42 eco2=612 ens_validity=0 ens_state=ok temp=22.6 rh=46.1 press=1012.3 gas=86.2 env_state=ok
+t=312 status=GOOD co2=684 co2_state=ok co2_cycles=309 co2_rejected=1 pm1=5 pm25=8 pm10=11 pm_state=ok pm_frames=298 pm_crc_err=0 aqi=1 tvoc=42 eco2=612 ens_validity=0 ens_state=ok temp=22.6 rh=46.1 press=1012.3 gas=86.2 env_state=ok wifi=connected rssi=-66 time=08:33 wx_temp=9.8 wx_wind=2.9 wx_sym=p.cloudy wx_rain6h=0.0 wx_state=ok wx_ok=3 wx_fail=0
 ```
+
+`wifi` is `connecting`, `connected`, `retry` or `no-module`; `wx_state` follows
+the sensor states (`init` until the first good fetch, `stale` after 3 h without
+one). Events: `[net] connecting`, `[net] connected <ip> rssi=<dBm>`,
+`[net] time synced`, `[wx] fetching forecast`, `[wx] forecast ok, ms=`,
+`[wx] fetch failed (<reason>)`.
 
 Sensor states: `init` (nothing received yet), `warmup`, `ok`, `stale` (was ok,
 no data within the timeout), `n/a` (not detected at boot). Events are tagged
@@ -227,6 +270,9 @@ worst valid metric; `WARMUP` when nothing is valid yet.
    `start-up` meanwhile.
 6. After 3 minutes the second refresh shows live values. Unplugging a sensor
    turns its tile into `-- no data` on the next refresh.
+7. With `secrets.h` filled in: `[net] connected` within seconds, `time=` in
+   the log about a minute later, and `[wx] forecast ok` on the first fetch.
+   The forecast line appears on the next panel refresh.
 
 ## Design notes
 
