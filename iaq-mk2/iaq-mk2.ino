@@ -1,7 +1,7 @@
 /*
  * IAQ-MK2: indoor air-quality station.
  * Arduino Nano RP2040 Connect + BME680 + ENS160 + PMS7003 + SEN0219 +
- * Waveshare 2.9" e-Paper (G). See README.md for wiring and build steps.
+ * Waveshare 2.9" e-Paper (B) V4. See README.md for wiring and build steps.
  *
  * loop() is cooperative: inputs update `readings`, the dashboard and the
  * serial log are pure functions of it, and the e-paper refresh is polled.
@@ -14,6 +14,7 @@
 #include "env_sensors.h"
 #include "epaper.h"
 #include "pm_input.h"
+#include "readiness.h"
 #include "readings.h"
 #include "serial_log.h"
 #include "watchdog.h"
@@ -26,8 +27,9 @@ uint8_t frameBuffer[kFrameBufferSize];
 uint32_t lastLogMs = 0;
 uint32_t lastDisplayMs = 0;
 uint32_t displayRequests = 0;
+UptimeCounter uptime;
 
-uint32_t uptimeSeconds(uint32_t nowMs) { return nowMs / 1000; }
+uint32_t uptimeSeconds(uint32_t nowMs) { return uptime.seconds(nowMs); }
 
 void pollInputs(uint32_t nowMs) {
   pm_input::update(nowMs, readings.pm);

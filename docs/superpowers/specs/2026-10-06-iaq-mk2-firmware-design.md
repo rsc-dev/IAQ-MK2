@@ -226,6 +226,11 @@ the real hardware changed three things.
 3. **Serial boot grace.** The USB CDC drops output until a terminal attaches,
    so the first log lines are preceded by a 2 s delay (`BOOT_SERIAL_DELAY_MS`)
    and `loop()` yields 1 ms per iteration to the RTOS.
+4. **Review fixes.** The refresh wait timeout is 45 s (section 5 said 60 s);
+   vendor busy waits time out after 3 s and BUSY has a pull-down so a missing
+   panel reads idle; warm-up is latched and uptime counts `millis()` wraps so a
+   station running past 49.7 days neither re-enters warm-up nor resets its
+   uptime.
 
 Verified on hardware: BME680, ENS160, PMS7003 and SEN0219 all deliver data
 (SEN0219 at the 400 ppm preheat floor during warm-up); full refresh completes

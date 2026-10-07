@@ -3,6 +3,7 @@
 #include <Arduino.h>
 
 #include "config.h"
+#include "readiness.h"
 #include "sen0219.h"
 
 namespace {
@@ -18,8 +19,8 @@ volatile bool g_haveHigh = false;
 volatile uint32_t g_cycleSeq = 0;  // increments when (g_highUs, g_lowUs) form a complete cycle
 
 uint32_t g_lastSeq = 0;
-uint32_t g_lastValidMs = 0;
-bool g_everValid = false;
+Readiness g_readiness;
+uint32_t g_bootMs = 0;
 uint16_t g_lastPpm = 0;
 uint32_t g_cyclesSeen = 0;
 uint32_t g_cyclesRejected = 0;
@@ -47,6 +48,7 @@ void onEdge() {
 }  // namespace
 
 void co2_input::begin() {
+  g_bootMs = millis();
   pinMode(cfg::PIN_CO2_PWM, INPUT);
   attachInterrupt(digitalPinToInterrupt(cfg::PIN_CO2_PWM), onEdge, CHANGE);
 }
@@ -64,26 +66,15 @@ void co2_input::update(uint32_t nowMs, Co2Reading& out) {
     const Co2Result r = co2FromPulse(highUs, lowUs);
     if (r.valid) {
       g_lastPpm = r.ppm;
-      g_lastValidMs = nowMs;
-      g_everValid = true;
+      readinessMarkValid(g_readiness, nowMs);
     } else {
       ++g_cyclesRejected;
     }
   }
 
-  if (!g_everValid) {
-    out.ppm = 0;
-    out.state = SensorState::NotReady;
-    return;
-  }
-  out.ppm = g_lastPpm;
-  if (nowMs - g_lastValidMs > cfg::CO2_STALE_MS) {
-    out.state = SensorState::Stale;
-  } else if (nowMs < cfg::CO2_WARMUP_MS || g_lastPpm < cfg::CO2_MIN_PLAUSIBLE_PPM) {
-    out.state = SensorState::WarmingUp;
-  } else {
-    out.state = SensorState::Ok;
-  }
+  out.state = readinessState(g_readiness, nowMs, g_bootMs, cfg::CO2_WARMUP_MS, cfg::CO2_STALE_MS,
+                             g_lastPpm >= cfg::CO2_MIN_PLAUSIBLE_PPM);
+  out.ppm = g_readiness.everValid ? g_lastPpm : 0;
 }
 
 uint32_t co2_input::cyclesSeen() { return g_cyclesSeen; }

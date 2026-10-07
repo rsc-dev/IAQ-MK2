@@ -29,7 +29,7 @@ constexpr uint32_t DISPLAY_INTERVAL_MS   = 180000;  // Waveshare minimum is 180 
 constexpr uint32_t BOOT_SETTLE_MS        = 3000;    // sensor time before the first screen
 constexpr uint8_t  DISPLAY_FULL_REFRESH_EVERY = 1;  // 1 = always full refresh; N > 1 = vendor fast mode in between (not verified)
 constexpr uint16_t DISPLAY_ROTATION      = 90;      // 90 or 270, depending on how the panel is mounted
-constexpr uint32_t EPD_BUSY_TIMEOUT_MS    = 10000;  // vendor init / power-off busy waits
+constexpr uint32_t EPD_BUSY_TIMEOUT_MS    = 3000;   // vendor init busy waits (SWRESET etc. take ~10 ms)
 constexpr uint32_t EPD_REFRESH_TIMEOUT_MS = 45000;  // a full refresh takes ~14-16 s
 constexpr uint32_t WATCHDOG_TIMEOUT_MS   = 8000;    // RP2040 hardware maximum is ~8.3 s
 

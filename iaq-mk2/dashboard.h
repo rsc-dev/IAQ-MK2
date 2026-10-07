@@ -3,8 +3,8 @@
 #include <stdint.h>
 #include "readings.h"
 
-// Renders the status panel into a 2-bit-per-pixel framebuffer for the
-// Waveshare 2.9" (G) panel (128 x 296 memory, shown as 296 x 128 landscape).
+// Renders the status panel into a 2-bit-per-pixel framebuffer (128 x 296 panel
+// memory, shown as 296 x 128 landscape) for the Waveshare 2.9" (B) V4 panel.
 // Pure: depends only on the Paint library, no Arduino APIs.
 
 constexpr int kDashboardWidth = 296;

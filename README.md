@@ -135,7 +135,9 @@ Sensor states: `init` (nothing received yet), `warmup`, `ok`, `stale` (was ok,
 no data within the timeout), `n/a` (not detected at boot). Events are tagged
 `[boot]`, `[epd]`, `[warn]`, `[err]`. Serial output never blocks when no
 terminal is attached. The first two seconds after boot are a grace period so a
-terminal opened right after upload still catches the `[boot]` lines.
+terminal opened right after upload still catches the `[boot]` lines. A host that
+keeps the port open but stops reading it makes USB writes block in the mbed
+core; the watchdog then reboots the board every 8 s until the port is closed.
 
 A healthy display refresh logs, in order: `init begin`, two BUSY transitions for
 the hardware reset, `refresh started (full)`, `init ms=~1000`,

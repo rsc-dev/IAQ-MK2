@@ -1,13 +1,15 @@
 // IAQ-MK2 replacement for Waveshare's DEV_Config.cpp targeting the Arduino
 // Nano RP2040 Connect (mbed core): hardware SPI0 on D11/D13, control pins
-// from config.h, BUSY with pull-up so a missing panel reads "idle" instead of
-// hanging the busy wait. The 2.9" (B) V4 module has eight wires and no PWR pin.
+// from config.h. The SSD1680 drives BUSY HIGH while busy, so BUSY gets a
+// pull-down: a missing or dead panel reads "idle" and the refresh degrades to a
+// logged "panel NOT busy" line instead of stalling every busy wait. The 2.9" (B)
+// V4 module has eight wires and no PWR pin.
 #include "DEV_Config.h"
 
 #include "../../watchdog.h"
 
 UBYTE DEV_Module_Init(void) {
-  pinMode(EPD_BUSY_PIN, INPUT_PULLUP);
+  pinMode(EPD_BUSY_PIN, INPUT_PULLDOWN);
   pinMode(EPD_RST_PIN, OUTPUT);
   pinMode(EPD_DC_PIN, OUTPUT);
   pinMode(EPD_CS_PIN, OUTPUT);
