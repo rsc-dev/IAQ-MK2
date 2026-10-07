@@ -25,6 +25,10 @@ Readings good() {
   r.pm = {5, 8, 11, SensorState::Ok};
   r.ens.aqi = 1; r.ens.tvocPpb = 42; r.ens.eco2Ppm = 612; r.ens.state = SensorState::Ok;
   r.env = {22.6f, 46.0f, 1012.3f, 86.2f, SensorState::Ok};
+  r.outdoor.tempC = 9.8f; r.outdoor.windMs = 2.9f; r.outdoor.rainNext6hMm = 0.0f;
+  std::strcpy(r.outdoor.symbol, "p.cloudy");
+  r.outdoor.state = SensorState::Ok;
+  r.time.epoch = 1791352452u; r.time.valid = true;   // 07:54 CEST
   return r;
 }
 }  // namespace
@@ -34,31 +38,32 @@ int main(int argc, char** argv) {
   static uint8_t fb[kFrameBufferSize];
 
   Readings r = good();
-  dashboardRender(r, 3 * 3600 + 12 * 60, fb);
+  dashboardRender(r, fb);
   writePpm(dir + "/01_good.ppm", fb);
 
   r = good(); r.co2.ppm = 950; r.pm.pm25 = 22; r.ens.aqi = 2;
-  dashboardRender(r, 26 * 3600, fb);
+  dashboardRender(r, fb);
   writePpm(dir + "/02_warn.ppm", fb);
 
   r = good(); r.co2.ppm = 1850; r.pm.pm25 = 48; r.pm.pm10 = 61; r.ens.aqi = 4; r.ens.tvocPpb = 1200;
-  dashboardRender(r, 5 * 86400 + 2 * 3600, fb);
+  r.outdoor.tempC = 6.0f; r.outdoor.windMs = 9.0f; r.outdoor.rainNext6hMm = 4.2f; std::strcpy(r.outdoor.symbol, "rain");
+  dashboardRender(r, fb);
   writePpm(dir + "/03_bad.ppm", fb);
 
   Readings w;                                   // boot screen
   w.pm.state = SensorState::NotReady;
   w.env = {21.9f, 51.0f, 1008.7f, 12.0f, SensorState::Ok};
-  dashboardRender(w, 4, fb);
+  dashboardRender(w, fb);
   writePpm(dir + "/04_boot.ppm", fb);
 
   r = good(); r.co2.state = SensorState::Stale; r.pm.state = SensorState::WarmingUp;
   r.ens.state = SensorState::WarmingUp; r.ens.validityFlag = 2; r.env.state = SensorState::Unavailable;
-  dashboardRender(r, 90, fb);
+  dashboardRender(r, fb);
   writePpm(dir + "/05_degraded.ppm", fb);
 
   r = good(); r.co2.ppm = 5000; r.pm = {999, 999, 999, SensorState::Ok}; r.ens.aqi = 5; r.ens.tvocPpb = 65000;
   r.env = {-10.5f, 100.0f, 1099.9f, 9999.0f, SensorState::Ok};
-  dashboardRender(r, 99 * 86400 + 23 * 3600, fb);
+  dashboardRender(r, fb);
   writePpm(dir + "/06_extreme.ppm", fb);
   return 0;
 }

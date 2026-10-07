@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "air_status.h"
+#include "clock.h"
 #include "config.h"
 #include "draw.h"
 #include "text_format.h"
@@ -19,20 +20,6 @@ constexpr uint8_t kBlack = kDashboardBlack;
 constexpr uint8_t kWhite = kDashboardWhite;
 constexpr uint8_t kRed = kDashboardRed;
 
-// ---- Layout (pixels) --------------------------------------------------------
-constexpr int kMargin = 6;
-constexpr int kHeaderTextY = 1;
-constexpr int kRule1Y = 19;
-constexpr int kLabelY = 23;
-constexpr int kValueY = 37;          // Font24 baseline row
-constexpr int kDividerX = 147;
-constexpr int kRule2Y = 66;
-constexpr int kRowAY = 70;
-constexpr int kRowBY = 84;
-constexpr int kRule3Y = 98;
-constexpr int kBottomY = 104;
-constexpr int kRightColumnX = 154;
-
 using draw::fillRect;
 using draw::hLine;
 using draw::outlineRect;
@@ -42,6 +29,22 @@ using draw::vLine;
 void drawText(int x, int y, const char* s, const sFONT& font, uint8_t fg, uint8_t bg = kWhite) { draw::text(x, y, s, font, fg, bg); }
 void drawTextRight(int xRight, int y, const char* s, const sFONT& font, uint8_t fg, uint8_t bg = kWhite) { draw::textRight(xRight, y, s, font, fg, bg); }
 void drawDegree(int x, int y, uint8_t colour) { draw::degree(x, y, colour); }
+
+// ---- Layout (pixels) --------------------------------------------------------
+constexpr int kMargin = 6;
+constexpr int kHeaderTextY = 1;
+constexpr int kRule1Y = 19;
+constexpr int kLabelY = 23;
+constexpr int kValueY = 37;          // Font24 row
+constexpr int kDividerX = 147;
+constexpr int kRightColumnX = 154;
+constexpr int kPmSideX = 218;        // PM1 / PM10 column inside the PM2.5 tile
+constexpr int kRule2Y = 66;
+constexpr int kRowAY = 70;           // AQI word, TVOC
+constexpr int kClimateY = 85;        // Font16 indoor climate
+constexpr int kRule3Y = 104;
+constexpr int kOutdoorY = 109;       // forecast line
+constexpr float kRainWarnMm = 0.5f;
 
 // The panel has black, white and red only: BAD is red, WARN is black with a red mark.
 uint8_t levelColour(Level level) { return level == Level::Bad ? kRed : kBlack; }
@@ -62,15 +65,36 @@ const char* stateHint(SensorState s) {
   return "";
 }
 
+const char* aqiWord(uint8_t aqi) {
+  switch (aqi) {
+    case 1: return "excellent";
+    case 2: return "good";
+    case 3: return "moderate";
+    case 4: return "poor";
+    case 5: return "unhealthy";
+  }
+  return "?";
+}
+
+// Temperature with a degree ring and "C", returns the x after the text.
+int drawTemperature(int x, int y, const sFONT& font, float celsius, uint8_t colour) {
+  char n[12];
+  formatFixed(n, sizeof n, celsius, font.Height >= 16 ? 1 : 0);
+  drawText(x, y, n, font, colour);
+  x += textWidth(n, font) + 3;
+  drawDegree(x, y + 2, colour);
+  drawText(x + 5, y, "C", font, colour);
+  return x + 5 + (int)font.Width;
+}
+
 // ---- Sections ----------------------------------------------------------------
-void drawHeader(const Readings& r, uint32_t uptimeSeconds) {
+void drawHeader(const Readings& r) {
   drawText(kMargin - 2, kHeaderTextY, "AIR QUALITY", Font16, kBlack);
 
   const Level overall = overallLevel(r);
   const char* status = levelName(overall);
-  const int badgeTextW = textWidth(status, Font16);
   const int badgeRight = kDashboardWidth - 4;
-  const int badgeLeft = badgeRight - badgeTextW - 9;
+  const int badgeLeft = badgeRight - textWidth(status, Font16) - 9;
   const int badgeTop = 0;
   const int badgeBottom = 17;
 
@@ -88,136 +112,124 @@ void drawHeader(const Readings& r, uint32_t uptimeSeconds) {
   }
   drawText(badgeLeft + 5, kHeaderTextY, status, Font16, ink, fill);
 
-  char up[20];
-  char text[28] = "up ";
-  formatUptime(up, sizeof up, uptimeSeconds);
-  strncat(text, up, sizeof text - strlen(text) - 1);
-  drawTextRight(badgeLeft - 8, kHeaderTextY + 3, text, Font12, kBlack);
+  char clock[8];
+  formatClockWarsaw(clock, sizeof clock, r.time.valid ? r.time.epoch : 0u);
+  drawTextRight(badgeLeft - 8, kHeaderTextY, clock, Font16, kBlack);
 }
 
-// Big value tile: label, Font24 value (red when BAD, red underline when WARN), Font12 unit.
-void drawTile(int x, const char* label, const char* value, const char* unit, Level level,
-              bool valid, SensorState state) {
-  drawText(x, kLabelY, label, Font12, kBlack);
+// Big value tile: value alone in Font24 (units live in the label), red when BAD,
+// red underline when WARN, "--" plus a hint otherwise.
+void drawTileValue(int x, const char* value, Level level, bool valid, SensorState state) {
   if (valid) {
     drawText(x, kValueY, value, Font24, levelColour(level));
     if (level == Level::Warn) drawWarnUnderline(x, kValueY + (int)Font24.Height + 1, textWidth(value, Font24), 2);
-    const int unitX = x + textWidth(value, Font24) + 5;
-    drawText(unitX, kValueY + (int)Font24.Height - (int)Font12.Height, unit, Font12, kBlack);
   } else {
     drawText(x, kValueY, "--", Font24, kBlack);
-    const int hintX = x + textWidth("--", Font24) + 5;
-    drawText(hintX, kValueY + (int)Font24.Height - (int)Font12.Height, stateHint(state), Font12, kBlack);
+    drawText(x + textWidth("--", Font24) + 5, kValueY + (int)Font24.Height - (int)Font12.Height, stateHint(state), Font12, kBlack);
   }
 }
 
 void drawMainTiles(const Readings& r) {
   char value[12];
+  char line[16];
 
+  drawText(kMargin, kLabelY, "CO2 ppm", Font12, kBlack);
   formatUInt(value, sizeof value, r.co2.ppm, 1);
-  drawTile(kMargin, "CO2", value, "ppm", co2Level(r.co2), r.co2.state == SensorState::Ok, r.co2.state);
+  drawTileValue(kMargin, value, co2Level(r.co2), r.co2.state == SensorState::Ok, r.co2.state);
 
+  drawText(kRightColumnX, kLabelY, "PM2.5 ug/m3", Font12, kBlack);
   formatUInt(value, sizeof value, r.pm.pm25, 1);
-  drawTile(kRightColumnX, "PM2.5", value, "ug/m3", pm25Level(r.pm), r.pm.state == SensorState::Ok, r.pm.state);
+  drawTileValue(kRightColumnX, value, pm25Level(r.pm), r.pm.state == SensorState::Ok, r.pm.state);
+  if (r.pm.state == SensorState::Ok) {
+    strcpy(line, "PM1 ");
+    formatUInt(value, sizeof value, r.pm.pm1, 1);
+    strcat(line, value);
+    drawText(kPmSideX, kValueY + 1, line, Font12, kBlack);
+    strcpy(line, "PM10 ");
+    formatUInt(value, sizeof value, r.pm.pm10, 1);
+    strcat(line, value);
+    drawText(kPmSideX, kValueY + 15, line, Font12, kBlack);
+  }
 
   vLine(kDividerX, kRule1Y + 2, kRule2Y - 2);
 }
 
-void drawSecondaryRows(const Readings& r) {
-  char line[40];
+void drawAirRow(const EnsReading& ens) {
   char num[12];
-
-  // Row A left: PM1 / PM10
-  if (r.pm.state == SensorState::Ok) {
-    char pm1[8], pm10[8];
-    formatUInt(pm1, sizeof pm1, r.pm.pm1, 1);
-    formatUInt(pm10, sizeof pm10, r.pm.pm10, 1);
-    strcpy(line, "PM1 ");
-    strcat(line, pm1);
-    strcat(line, "  PM10 ");
-    strcat(line, pm10);
-  } else {
-    strcpy(line, "PM1 --  PM10 --");
-  }
-  drawText(kMargin, kRowAY, line, Font12, kBlack);
-
-  // Row A right: AQI (coloured) and TVOC
-  const bool ensOk = r.ens.state == SensorState::Ok;
-  drawText(kRightColumnX, kRowAY, "AQI ", Font12, kBlack);
-  if (ensOk) {
-    formatUInt(num, sizeof num, r.ens.aqi, 1);
-    const Level aqi = aqiLevel(r.ens);
-    const int aqiX = kRightColumnX + textWidth("AQI ", Font12);
-    drawText(aqiX, kRowAY, num, Font12, levelColour(aqi));
-    if (aqi == Level::Warn) drawWarnUnderline(aqiX, kRowAY + (int)Font12.Height, textWidth(num, Font12), 1);
-    formatUInt(num, sizeof num, r.ens.tvocPpb, 1);
-    strcpy(line, "TVOC ");
-    strcat(line, num);
-    strcat(line, " ppb");
-  } else {
-    drawText(kRightColumnX + textWidth("AQI ", Font12), kRowAY, "-", Font12, kBlack);
-    strcpy(line, "TVOC --");
-  }
-  drawText(kRightColumnX + 42, kRowAY, line, Font12, kBlack);
-
-  // Row B left: BME680 gas resistance
-  if (r.env.state == SensorState::Ok) {
-    formatFixed(num, sizeof num, r.env.gasKOhm, 0);
-    strcpy(line, "GAS ");
-    strcat(line, num);
-    strcat(line, " kOhm");
-  } else {
-    strcpy(line, "GAS --");
-  }
-  drawText(kMargin, kRowBY, line, Font12, kBlack);
-
-  // Row B right: ENS160 health hint when it is not delivering valid data
-  if (!ensOk) {
-    strcpy(line, "ENS160 ");
-    strcat(line, r.ens.state == SensorState::WarmingUp && r.ens.validityFlag == 2 ? "start-up" : stateHint(r.ens.state));
-    drawText(kRightColumnX, kRowBY, line, Font12, kBlack);
-  }
-}
-
-void drawEnvironment(const EnvReading& env) {
-  char num[12];
-  if (env.state != SensorState::Ok) {
-    const char* msg = env.state == SensorState::Unavailable ? "BME680 not found" : "BME680 --";
-    drawText(kMargin, kBottomY, msg, Font16, kBlack);
+  char line[24];
+  if (ens.state != SensorState::Ok) {
+    drawText(kMargin, kRowAY, "AQI -  TVOC --", Font12, kBlack);
     return;
   }
-  // Temperature with a degree ring, e.g. "22.6 oC"
-  formatFixed(num, sizeof num, env.temperatureC, 1);
-  drawText(kMargin, kBottomY, num, Font16, kBlack);
-  int x = kMargin + textWidth(num, Font16) + 3;
-  drawDegree(x, kBottomY + 2, kBlack);
-  drawText(x + 5, kBottomY, "C", Font16, kBlack);
+  drawText(kMargin, kRowAY, "AQI ", Font12, kBlack);
+  const Level aqi = aqiLevel(ens);
+  const int aqiX = kMargin + textWidth("AQI ", Font12);
+  formatUInt(num, sizeof num, ens.aqi, 1);
+  drawText(aqiX, kRowAY, num, Font12, levelColour(aqi));
+  if (aqi == Level::Warn) drawWarnUnderline(aqiX, kRowAY + (int)Font12.Height, textWidth(num, Font12), 1);
+  drawText(aqiX + textWidth(num, Font12) + 7, kRowAY, aqiWord(ens.aqi), Font12, kBlack);
 
+  strcpy(line, "TVOC ");
+  formatUInt(num, sizeof num, ens.tvocPpb, 1);
+  strcat(line, num);
+  strcat(line, " ppb");
+  drawTextRight(kDashboardWidth - kMargin, kRowAY, line, Font12, kBlack);
+}
+
+void drawClimate(const EnvReading& env) {
+  if (env.state != SensorState::Ok) {
+    drawText(kMargin, kClimateY, env.state == SensorState::Unavailable ? "BME680 not found" : "BME680 --", Font16, kBlack);
+    return;
+  }
+  char num[12];
+  char text[16];
+  drawTemperature(kMargin, kClimateY, Font16, env.temperatureC, kBlack);
   formatFixed(num, sizeof num, env.humidityPct, 0);
-  char rh[12];
-  strcpy(rh, num);
-  strcat(rh, " %");
-  drawText(118, kBottomY, rh, Font16, kBlack);
-
+  strcpy(text, num);
+  strcat(text, " %");
+  drawText(118, kClimateY, text, Font16, kBlack);
   formatFixed(num, sizeof num, env.pressureHpa, 0);
-  char p[16];
-  strcpy(p, num);
-  strcat(p, " hPa");
-  drawTextRight(kDashboardWidth - kMargin, kBottomY, p, Font16, kBlack);
+  strcpy(text, num);
+  strcat(text, " hPa");
+  drawTextRight(kDashboardWidth - kMargin, kClimateY, text, Font16, kBlack);
+}
+
+void drawOutdoor(const OutdoorReading& o) {
+  if (o.state != SensorState::Ok) {
+    drawText(kMargin, kOutdoorY, "Gdynia: no forecast", Font12, kBlack);
+    return;
+  }
+  char num[12];
+  char text[24];
+  drawText(kMargin, kOutdoorY, "Gdynia", Font12, kBlack);
+  int x = drawTemperature(kMargin + textWidth("Gdynia ", Font12), kOutdoorY, Font12, o.tempC, kBlack) + 10;
+  strcpy(text, o.symbol);
+  drawText(x, kOutdoorY, text, Font12, kBlack);
+  x += textWidth(text, Font12) + 10;
+  formatFixed(num, sizeof num, o.windMs, 0);
+  strcpy(text, num);
+  strcat(text, " m/s");
+  drawText(x, kOutdoorY, text, Font12, kBlack);
+  x += textWidth(text, Font12) + 10;
+  formatFixed(num, sizeof num, o.rainNext6hMm, 1);
+  strcpy(text, "6h ");
+  strcat(text, num);
+  strcat(text, " mm");
+  drawText(x, kOutdoorY, text, Font12, o.rainNext6hMm >= kRainWarnMm ? kRed : kBlack);
 }
 
 }  // namespace
 
-void dashboardRender(const Readings& r, uint32_t uptimeSeconds, uint8_t* frameBuffer) {
+void dashboardRender(const Readings& r, uint8_t* frameBuffer) {
   draw::beginFrame(frameBuffer);
-
-  drawHeader(r, uptimeSeconds);
+  drawHeader(r);
   hLine(0, kDashboardWidth - 1, kRule1Y);
   drawMainTiles(r);
   hLine(0, kDashboardWidth - 1, kRule2Y);
-  drawSecondaryRows(r);
+  drawAirRow(r.ens);
+  drawClimate(r.env);
   hLine(0, kDashboardWidth - 1, kRule3Y);
-  drawEnvironment(r.env);
+  drawOutdoor(r.outdoor);
 }
 
 namespace {

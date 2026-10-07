@@ -21,6 +21,24 @@ Readings extreme() {
   r.ens.aqi = 5; r.ens.tvocPpb = 65000; r.ens.eco2Ppm = 65000; r.ens.state = SensorState::Ok;
   r.env.temperatureC = -10.5f; r.env.humidityPct = 100.0f; r.env.pressureHpa = 1099.9f; r.env.gasKOhm = 9999.0f;
   r.env.state = SensorState::Ok;
+  r.outdoor.tempC = -25.5f; r.outdoor.windMs = 35.0f; r.outdoor.rainNext6hMm = 99.9f;
+  std::strcpy(r.outdoor.symbol, "hvy rain");
+  r.outdoor.state = SensorState::Ok;
+  r.time.epoch = 1791352452u; r.time.valid = true;
+  return r;
+}
+
+Readings goodReadings() {
+  Readings r;
+  r.co2.ppm = 650; r.co2.state = SensorState::Ok;
+  r.pm.pm1 = 3; r.pm.pm25 = 5; r.pm.pm10 = 7; r.pm.state = SensorState::Ok;
+  r.ens.aqi = 1; r.ens.tvocPpb = 40; r.ens.state = SensorState::Ok;
+  r.env.temperatureC = 22.6f; r.env.humidityPct = 46.0f; r.env.pressureHpa = 1012.3f; r.env.gasKOhm = 86.2f;
+  r.env.state = SensorState::Ok;
+  r.outdoor.tempC = 9.8f; r.outdoor.windMs = 2.9f; r.outdoor.rainNext6hMm = 0.0f;
+  std::strcpy(r.outdoor.symbol, "p.cloudy");
+  r.outdoor.state = SensorState::Ok;
+  r.time.epoch = 1791352452u; r.time.valid = true;
   return r;
 }
 
@@ -33,7 +51,7 @@ int countColour(const uint8_t* fb, uint8_t colour) {
 
 TEST(dashboard_extreme_values_stay_in_bounds) {
   GuardedBuffer g;
-  dashboardRender(extreme(), 99 * 86400 + 23 * 3600, g.bytes);
+  dashboardRender(extreme(), g.bytes);
   CHECK(g.canaryIntact());
   CHECK(countColour(g.bytes, 0) > 500);          // black ink present
   CHECK(countColour(g.bytes, 3) > 50);           // red: BAD badge and values
@@ -47,7 +65,7 @@ TEST(dashboard_good_has_no_warning_colours) {
   r.env.temperatureC = 22.6f; r.env.humidityPct = 46.0f; r.env.pressureHpa = 1012.3f; r.env.gasKOhm = 86.2f;
   r.env.state = SensorState::Ok;
   GuardedBuffer g;
-  dashboardRender(r, 3 * 3600 + 12 * 60, g.bytes);
+  dashboardRender(r, g.bytes);
   CHECK(g.canaryIntact());
   CHECK_EQ(countColour(g.bytes, 2), 0);
   CHECK_EQ(countColour(g.bytes, 3), 0);
@@ -57,14 +75,14 @@ TEST(dashboard_warmup_renders_without_valid_data) {
   Readings r;                                     // everything NotReady
   r.env.state = SensorState::Unavailable;
   GuardedBuffer g;
-  dashboardRender(r, 5, g.bytes);
+  dashboardRender(r, g.bytes);
   CHECK(g.canaryIntact());
   CHECK(countColour(g.bytes, 0) > 500);
 }
 
 TEST(dashboard_planes_follow_pixels) {
   GuardedBuffer g;
-  dashboardRender(extreme(), 100, g.bytes);
+  dashboardRender(extreme(), g.bytes);
   static uint8_t black[kPlaneSize], red[kPlaneSize];
   dashboardSplitPlanes(g.bytes, black, red);
   int mismatches = 0;
@@ -85,7 +103,7 @@ TEST(dashboard_good_red_plane_is_blank) {
   r.pm.pm25 = 5; r.pm.state = SensorState::Ok;
   r.ens.aqi = 1; r.ens.state = SensorState::Ok;
   GuardedBuffer g;
-  dashboardRender(r, 60, g.bytes);
+  dashboardRender(r, g.bytes);
   static uint8_t black[kPlaneSize], red[kPlaneSize];
   dashboardSplitPlanes(g.bytes, black, red);
   int redInk = 0, blackInk = 0;
@@ -105,8 +123,8 @@ TEST(dashboard_warn_uses_red_marks_not_red_text) {
   Readings bad = warn;
   bad.co2.ppm = 1850; bad.pm.pm25 = 48; bad.ens.aqi = 4;
   GuardedBuffer gw, gb;
-  dashboardRender(warn, 60, gw.bytes);
-  dashboardRender(bad, 60, gb.bytes);
+  dashboardRender(warn, gw.bytes);
+  dashboardRender(bad, gb.bytes);
   const int redWarn = countColour(gw.bytes, 3);
   const int redBad = countColour(gb.bytes, 3);
   CHECK(redWarn > 0);
@@ -120,10 +138,41 @@ TEST(dashboard_warn_uses_red_marks_not_red_text) {
 TEST(dashboard_pixel_decoder_matches_rotation) {
   GuardedBuffer g;
   Readings r;
-  dashboardRender(r, 0, g.bytes);
+  dashboardRender(r, g.bytes);
   // Header rule at y = 19 is black across the full width; row 60 near the
   // right edge is white in the warm-up screen.
   CHECK_EQ(dashboardPixel(g.bytes, 0, 19), 0);
   CHECK_EQ(dashboardPixel(g.bytes, 295, 19), 0);
   CHECK_EQ(dashboardPixel(g.bytes, 295, 60), 1);
+}
+
+TEST(dashboard_rain_warning_is_the_only_red_on_a_good_screen) {
+  Readings r = goodReadings();
+  GuardedBuffer g;
+  dashboardRender(r, g.bytes);
+  CHECK_EQ(countColour(g.bytes, 3), 0);
+  r.outdoor.rainNext6hMm = 4.2f;
+  dashboardRender(r, g.bytes);
+  CHECK(countColour(g.bytes, 3) > 20);                 // the "6h 4.2 mm" figure
+  CHECK(g.canaryIntact());
+}
+
+TEST(dashboard_offline_forecast_and_clock_render_without_red) {
+  Readings r = goodReadings();
+  r.outdoor.state = SensorState::NotReady;
+  r.time.valid = false;
+  GuardedBuffer g;
+  dashboardRender(r, g.bytes);
+  CHECK(g.canaryIntact());
+  CHECK_EQ(countColour(g.bytes, 3), 0);
+  CHECK(countColour(g.bytes, 0) > 500);
+}
+
+TEST(dashboard_stale_forecast_is_not_shown_as_current) {
+  Readings r = goodReadings();
+  r.outdoor.rainNext6hMm = 9.0f;
+  r.outdoor.state = SensorState::Stale;                 // last fetch too old
+  GuardedBuffer g;
+  dashboardRender(r, g.bytes);
+  CHECK_EQ(countColour(g.bytes, 3), 0);                 // no red rain figure from stale data
 }

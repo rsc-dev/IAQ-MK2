@@ -18,7 +18,7 @@ constexpr uint8_t kDashboardBlack = 0;
 constexpr uint8_t kDashboardWhite = 1;
 constexpr uint8_t kDashboardRed = 3;
 
-void dashboardRender(const Readings& r, uint32_t uptimeSeconds, uint8_t* frameBuffer);
+void dashboardRender(const Readings& r, uint8_t* frameBuffer);
 
 // Colour code (0 black, 1 white, 3 red) of landscape pixel (x, y) in a buffer
 // produced by dashboardRender. For tests and previews.
