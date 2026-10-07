@@ -66,7 +66,7 @@ void setup() {
   watchdog::begin(cfg::WATCHDOG_TIMEOUT_MS);
   delay(cfg::BOOT_SERIAL_DELAY_MS);  // give a connected terminal a moment; never wait for one
 
-  serial_log::event("boot", "IAQ-MK2 air quality station");
+  serial_log::event("boot", "IAQ-MK2 air quality station v" IAQ_MK2_VERSION);
   serial_log::event("boot", watchdog::active() ? "watchdog armed" : "watchdog unavailable");
 
   env_sensors::begin(readings.env, readings.ens);

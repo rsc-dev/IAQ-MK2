@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+jobs:
+  host-tests:
+    name: Host tests and previews
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Unit tests (C++)
+        run: make -C tests test
+      - name: Tool tests (Python)
+        run: make -C tests tools
+      - name: Dashboard previews
+        run: make -C tests preview && make -C tests layouts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-previews
+          path: tests/out/*.png
+
+  firmware:
+    name: Firmware compile (Nano RP2040 Connect)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Placeholder credentials
+        run: cp iaq-mk2/secrets.example.h iaq-mk2/secrets.h
+      - name: Package index
+        run: arduino-cli core update-index
+      - name: Compile with the pinned profile
+        run: |
+          arduino-cli compile --profile nanorp2040 --warnings all iaq-mk2 2>&1 | tee compile.log
+          test "${PIPESTATUS[0]}" -eq 0
+      - name: No warnings in project sources
+        run: |
+          if grep -E "warning:" compile.log | grep -E "/iaq-mk2/" | grep -vE "/src/(waveshare|ArduinoJson)/"; then
+            echo "warnings in project sources"; exit 1
+          fi
+          grep -E "Sketch uses|Global variables" compile.log

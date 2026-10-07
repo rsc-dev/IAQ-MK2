@@ -2,7 +2,12 @@
 #include <stdint.h>
 
 // All tunables live here. Pin numbers use Arduino numbering for the Nano RP2040 Connect.
+
+#define IAQ_MK2_VERSION "1.0.0"   // bump with each tagged release
+
 namespace cfg {
+
+constexpr const char* FIRMWARE_VERSION = IAQ_MK2_VERSION;
 
 // ---- Pins ------------------------------------------------------------------
 constexpr uint8_t PIN_CO2_PWM  = 2;   // SEN0219 PWM output (3.3 V level)
@@ -42,7 +47,7 @@ constexpr uint32_t WIFI_POLL_MS            = 500;       // status / NTP polling 
 constexpr uint32_t TIME_SYNC_INTERVAL_MS   = 60000;     // re-read the NTP epoch from the NINA
 constexpr const char* WEATHER_HOST = "api.met.no";
 constexpr const char* WEATHER_PATH = "/weatherapi/locationforecast/2.0/compact?lat=54.468&lon=18.495";  // Gdynia Wielki Kack
-constexpr const char* WEATHER_USER_AGENT = "IAQ-MK2/1.0 github.com/rsc-dev/IAQ-MK2";
+constexpr const char* WEATHER_USER_AGENT = "IAQ-MK2/" IAQ_MK2_VERSION " github.com/rsc-dev/IAQ-MK2";
 constexpr uint32_t WEATHER_INTERVAL_MS     = 3600000;   // MET Norway asks not to poll faster than Expires (~30 min)
 constexpr uint32_t WEATHER_RETRY_MS        = 600000;    // after a failed fetch
 constexpr uint32_t WEATHER_STALE_MS        = 10800000;  // 3 h without a good reply -> "no forecast"
