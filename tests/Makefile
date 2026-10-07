@@ -7,7 +7,7 @@ VENDOR   := $(SKETCH)/src/waveshare
 CXXFLAGS := -std=c++17 -O1 -g -Wall -Wextra -Werror -I$(SKETCH) -I$(VENDOR) -DIAQ_HOST_BUILD
 VENDOR_FLAGS := -std=c++17 -O1 -g -w -I$(SKETCH) -I$(VENDOR) -DIAQ_HOST_BUILD
 
-PURE_SRC   := $(wildcard $(SKETCH)/text_format.cpp $(SKETCH)/air_status.cpp $(SKETCH)/pms7003.cpp $(SKETCH)/sen0219.cpp $(SKETCH)/dashboard.cpp $(SKETCH)/readiness.cpp)
+PURE_SRC   := $(wildcard $(SKETCH)/text_format.cpp $(SKETCH)/air_status.cpp $(SKETCH)/pms7003.cpp $(SKETCH)/sen0219.cpp $(SKETCH)/dashboard.cpp $(SKETCH)/readiness.cpp $(SKETCH)/draw.cpp)
 VENDOR_SRC := $(wildcard $(VENDOR)/GUI_Paint.cpp $(VENDOR)/font8.cpp $(VENDOR)/font12.cpp $(VENDOR)/font16.cpp $(VENDOR)/font20.cpp $(VENDOR)/font24.cpp)
 TEST_SRC   := $(wildcard test_*.cpp)
 
@@ -42,6 +42,16 @@ build/test_runner: $(TEST_OBJ) $(PURE_OBJ) $(VENDOR_OBJ)
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
 build/render_preview: build/render_preview.o $(PURE_OBJ) $(VENDOR_OBJ)
+	$(CXX) $(CXXFLAGS) -o $@ $^
+
+# Layout mockups (alternative screen designs) into out/layout_*.png
+.PHONY: layouts
+layouts: build/render_layouts
+	mkdir -p out
+	./build/render_layouts out
+	uv run --quiet ppm_to_png.py out
+
+build/render_layouts: build/render_layouts.o $(PURE_OBJ) $(VENDOR_OBJ)
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
 clean:

@@ -4,6 +4,7 @@
 
 #include "air_status.h"
 #include "config.h"
+#include "draw.h"
 #include "text_format.h"
 #include "src/waveshare/EPD_2in9b_V4.h"
 #include "src/waveshare/GUI_Paint.h"
@@ -32,54 +33,15 @@ constexpr int kRule3Y = 98;
 constexpr int kBottomY = 104;
 constexpr int kRightColumnX = 154;
 
-// ---- Primitive drawing (clipped; never relies on vendor bounds checks) -------
-void setPixel(int x, int y, uint8_t colour) {
-  if (x < 0 || y < 0 || x >= kDashboardWidth || y >= kDashboardHeight) return;
-  Paint_SetPixel((UWORD)x, (UWORD)y, colour);
-}
-
-void fillRect(int x0, int y0, int x1, int y1, uint8_t colour) {
-  for (int y = y0; y <= y1; ++y)
-    for (int x = x0; x <= x1; ++x) setPixel(x, y, colour);
-}
-
-void hLine(int x0, int x1, int y, uint8_t colour = kBlack) { fillRect(x0, y, x1, y, colour); }
-void vLine(int x, int y0, int y1, uint8_t colour = kBlack) { fillRect(x, y0, x, y1, colour); }
-
-void outlineRect(int x0, int y0, int x1, int y1, uint8_t colour) {
-  hLine(x0, x1, y0, colour);
-  hLine(x0, x1, y1, colour);
-  vLine(x0, y0, y1, colour);
-  vLine(x1, y0, y1, colour);
-}
-
-int textWidth(const char* s, const sFONT& font) { return (int)strlen(s) * (int)font.Width; }
-
-// Draws text left-aligned at (x, y) without wrapping. Glyphs that would cross
-// the right edge are dropped. Non-ASCII characters render as '?'.
-void drawText(int x, int y, const char* s, const sFONT& font, uint8_t fg, uint8_t bg = kWhite) {
-  if (y < 0 || y + (int)font.Height > kDashboardHeight) return;
-  for (; *s != '\0'; ++s, x += (int)font.Width) {
-    if (x < 0) continue;
-    if (x + (int)font.Width > kDashboardWidth) return;
-    char c = *s;
-    if (c < ' ' || c > '~') c = '?';
-    // Paint_DrawChar has the documented (foreground, background) order.
-    Paint_DrawChar((UWORD)x, (UWORD)y, c, const_cast<sFONT*>(&font), fg, bg);
-  }
-}
-
-void drawTextRight(int xRight, int y, const char* s, const sFONT& font, uint8_t fg, uint8_t bg = kWhite) {
-  drawText(xRight - textWidth(s, font), y, s, font, fg, bg);
-}
-
-// Small degree sign: a 3x3 ring with its top-left corner at (x, y).
-void drawDegree(int x, int y, uint8_t colour) {
-  setPixel(x + 1, y, colour);
-  setPixel(x, y + 1, colour);
-  setPixel(x + 2, y + 1, colour);
-  setPixel(x + 1, y + 2, colour);
-}
+using draw::fillRect;
+using draw::hLine;
+using draw::outlineRect;
+using draw::setPixel;
+using draw::textWidth;
+using draw::vLine;
+void drawText(int x, int y, const char* s, const sFONT& font, uint8_t fg, uint8_t bg = kWhite) { draw::text(x, y, s, font, fg, bg); }
+void drawTextRight(int xRight, int y, const char* s, const sFONT& font, uint8_t fg, uint8_t bg = kWhite) { draw::textRight(xRight, y, s, font, fg, bg); }
+void drawDegree(int x, int y, uint8_t colour) { draw::degree(x, y, colour); }
 
 // The panel has black, white and red only: BAD is red, WARN is black with a red mark.
 uint8_t levelColour(Level level) { return level == Level::Bad ? kRed : kBlack; }
@@ -247,10 +209,7 @@ void drawEnvironment(const EnvReading& env) {
 }  // namespace
 
 void dashboardRender(const Readings& r, uint32_t uptimeSeconds, uint8_t* frameBuffer) {
-  Paint_NewImage(frameBuffer, EPD_2IN9B_V4_WIDTH, EPD_2IN9B_V4_HEIGHT, cfg::DISPLAY_ROTATION, kWhite);
-  Paint_SetScale(4);
-  Paint_SelectImage(frameBuffer);
-  Paint_Clear(kWhite);
+  draw::beginFrame(frameBuffer);
 
   drawHeader(r, uptimeSeconds);
   hLine(0, kDashboardWidth - 1, kRule1Y);
