@@ -46,3 +46,8 @@ build/render_preview: build/render_preview.o $(PURE_OBJ) $(VENDOR_OBJ)
 
 clean:
 	rm -rf build out
+
+# Host tools (Python): parser tests for tools/serial_dump.py
+.PHONY: tools
+tools:
+	cd ../tools && uv run --quiet --with pytest --with pyserial --with typer python -m pytest -q .

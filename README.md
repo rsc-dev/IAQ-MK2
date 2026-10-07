@@ -123,6 +123,58 @@ behind it to catch out-of-bounds drawing, which the vendor Paint library does
 not guard against, and checks that the two 1-bit planes sent to the panel
 match the rendered pixels.
 
+## Live readings
+
+`tools/serial_dump.py` shows the station's summary lines as a table (events are
+printed indented between rows), survives the board re-enumerating during an
+upload, and can append the parsed readings to a CSV file. It needs only `uv`:
+
+```sh
+uv run tools/serial_dump.py                          # /dev/ttyACM0, until Ctrl-C
+uv run tools/serial_dump.py --seconds 60 --csv readings.csv
+uv run tools/serial_dump.py --raw                    # every line verbatim, timestamped
+uv run tools/serial_dump.py --port /dev/ttyACM1
+```
+
+```
+      t status   co2 co2_state  pm1 pm25 pm10 pm_state aqi  tvoc  eco2 ens_state  temp    rh  press    gas env_state
+    200    BAD   404        ok    2    3    3       ok   3   268   771        ok  22.5  60.2 1003.9  702.3        ok
+        [epd] refresh done, ms=16409
+```
+
+Its parser tests run with `make -C tests tools`.
+
+## What the ENS160 AQI means
+
+`aqi` is the ENS160's own 1-5 rating of its VOC signal on the German UBA scale,
+computed inside the sensor; it does not use the NDIR CO2 or the PM values:
+
+| AQI | ENS160 rating | UBA guidance |
+| --- | --- | --- |
+| 1 | Excellent | target value, no objections |
+| 2 | Good | no relevant objections, sufficient ventilation recommended |
+| 3 | Moderate | some objections, increased ventilation recommended, look for sources |
+| 4 | Poor | major objections, intensified ventilation, look for sources |
+| 5 | Unhealthy | not acceptable, use the room only if unavoidable |
+
+Things to know when it reads 3 or higher while CO2 and PM are fine:
+
+- The firmware maps AQI 1 to GOOD, 2 to WARN and 3 or more to BAD
+  (`AQI_WARN`, `AQI_BAD` in `config.h`). Level 3 is "moderate", so a less
+  alarming mapping is `AQI_WARN = 3`, `AQI_BAD = 4`.
+- The rating is relative and baseline-driven. A MOX sensor adapts its baseline
+  over the first day or two of continuous operation; readings right after
+  flashing, reboots or moving the station are usually pessimistic.
+- It reacts to all VOCs, not only people: solder flux and fresh electronics
+  (a breadboard build qualifies), cleaning products, alcohol, perfume, food,
+  new furniture, paint. `eco2` is estimated from the same VOC signal, so a
+  high `eco2` next to a low NDIR `co2` means "VOCs from something other than
+  breathing", which is exactly why the panel shows the NDIR value.
+- Fresh-air test: put the station at an open window for ten minutes. `tvoc`
+  should drop well below 100 ppb and `aqi` to 1 or 2. If it does, the room has
+  a VOC source; if it does not, let the sensor run for a day and keep it away
+  from the PMS7003 exhaust and the BME680 (its heater runs at 320 C).
+
 ## Serial log
 
 115200 baud. One `key=value` line every 5 s (`LOG_INTERVAL_MS`), e.g.
