@@ -48,9 +48,25 @@ struct EnvReading {
   SensorState state = SensorState::NotReady;
 };
 
+struct OutdoorReading {
+  float tempC = 0.0f;
+  float windMs = 0.0f;
+  char symbol[12] = "";      // short word for the met.no symbol code
+  float rainNext6hMm = 0.0f;
+  uint32_t fetchedEpoch = 0;
+  SensorState state = SensorState::NotReady;
+};
+
+struct TimeReading {
+  uint32_t epoch = 0;        // Unix time (UTC); 0 = unknown
+  bool valid = false;
+};
+
 struct Readings {
   Co2Reading co2;
   PmReading pm;
   EnsReading ens;
   EnvReading env;
+  OutdoorReading outdoor;
+  TimeReading time;
 };

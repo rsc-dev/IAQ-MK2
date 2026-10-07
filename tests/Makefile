@@ -7,7 +7,7 @@ VENDOR   := $(SKETCH)/src/waveshare
 CXXFLAGS := -std=c++17 -O1 -g -Wall -Wextra -Werror -I$(SKETCH) -I$(VENDOR) -DIAQ_HOST_BUILD
 VENDOR_FLAGS := -std=c++17 -O1 -g -w -I$(SKETCH) -I$(VENDOR) -DIAQ_HOST_BUILD
 
-PURE_SRC   := $(wildcard $(SKETCH)/text_format.cpp $(SKETCH)/air_status.cpp $(SKETCH)/pms7003.cpp $(SKETCH)/sen0219.cpp $(SKETCH)/dashboard.cpp $(SKETCH)/readiness.cpp $(SKETCH)/draw.cpp $(SKETCH)/clock.cpp)
+PURE_SRC   := $(wildcard $(SKETCH)/text_format.cpp $(SKETCH)/air_status.cpp $(SKETCH)/pms7003.cpp $(SKETCH)/sen0219.cpp $(SKETCH)/dashboard.cpp $(SKETCH)/readiness.cpp $(SKETCH)/draw.cpp $(SKETCH)/clock.cpp $(SKETCH)/http_body.cpp $(SKETCH)/forecast.cpp)
 VENDOR_SRC := $(wildcard $(VENDOR)/GUI_Paint.cpp $(VENDOR)/font8.cpp $(VENDOR)/font12.cpp $(VENDOR)/font16.cpp $(VENDOR)/font20.cpp $(VENDOR)/font24.cpp)
 TEST_SRC   := $(wildcard test_*.cpp)
 
