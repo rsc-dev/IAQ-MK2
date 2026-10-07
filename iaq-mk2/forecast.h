@@ -13,8 +13,7 @@
 bool forecastExtractFirstEntry(ByteSource& body, char* out, size_t cap);
 
 // Parses one timeseries entry. Requires air_temperature and wind_speed;
-// symbol and 6-hour precipitation default to "?" and 0. Leaves `state`,
-// `fetchedEpoch` untouched.
+// symbol and 6-hour precipitation default to "?" and 0. Leaves `state` untouched.
 bool forecastParseEntry(const char* json, OutdoorReading& out);
 
 // Short ASCII word for a met.no symbol code, e.g. "partlycloudy_day" -> "p.cloudy".

@@ -11,6 +11,7 @@
 #include "http_body.h"
 #include "net.h"
 #include "serial_log.h"
+#include "watchdog.h"
 
 namespace {
 
@@ -60,6 +61,7 @@ char g_entry[1536];
 // Runs in the worker thread. Returns an empty string on success.
 const char* fetchOnce(OutdoorReading& out) {
   WiFiSSLClient client;
+  client.setConnectionTimeout(cfg::WEATHER_TLS_CONNECT_TIMEOUT_MS);
   const uint32_t deadline = millis() + cfg::WEATHER_FETCH_TIMEOUT_MS;
   if (!client.connect(cfg::WEATHER_HOST, 443)) return "tls connect";
 
@@ -109,6 +111,7 @@ void workerMain() {
 }  // namespace
 
 void weather::begin() {
+  if (!net::moduleAvailable()) return;
   g_worker = new rtos::Thread(osPriorityBelowNormal, 6144, nullptr, "weather");
   g_worker->start(workerMain);
 }
@@ -117,6 +120,16 @@ void weather::update(uint32_t nowMs, OutdoorReading& out) {
   if (!net::moduleAvailable()) {
     out.state = SensorState::Unavailable;
     return;
+  }
+
+  // A NINA that stops answering mid-transfer parks the worker forever (the SPI
+  // driver has no timeout) while it holds the NINA lock, which would silently
+  // freeze network and clock. The only recovery is a reboot, which also resets
+  // the module.
+  if (g_busy && nowMs - g_lastAttemptMs > cfg::WEATHER_WORKER_HANG_MS) {
+    serial_log::event("wx", "worker hung, rebooting");
+    delay(50);
+    NVIC_SystemReset();
   }
 
   // Collect a finished fetch.
@@ -133,7 +146,6 @@ void weather::update(uint32_t nowMs, OutdoorReading& out) {
       ++g_fetchesOk;
       g_lastFailed = false;
       g_lastOkMs = nowMs;
-      result.fetchedEpoch = net::epoch(nowMs);
       result.state = SensorState::Ok;
       out = result;
       serial_log::eventValue("wx", "forecast ok, ms=", duration);

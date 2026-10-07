@@ -1,6 +1,7 @@
 #include <cstring>
 #include "test.h"
 #include "dashboard.h"
+#include "draw.h"
 #include "readings.h"
 
 namespace {
@@ -51,8 +52,16 @@ int countColour(const uint8_t* fb, uint8_t colour) {
 
 TEST(dashboard_extreme_values_stay_in_bounds) {
   GuardedBuffer g;
+  draw::resetDroppedGlyphs();
   dashboardRender(extreme(), g.bytes);
   CHECK(g.canaryIntact());
+  CHECK_EQ(draw::droppedGlyphs(), 0);            // nothing clipped at the right edge
+  Readings winter = extreme();
+  winter.env.temperatureC = -10.5f; winter.outdoor.tempC = -10.5f; winter.outdoor.windMs = 12.0f;
+  winter.outdoor.rainNext6hMm = 10.2f; std::strcpy(winter.outdoor.symbol, "hvy snow");
+  draw::resetDroppedGlyphs();
+  dashboardRender(winter, g.bytes);
+  CHECK_EQ(draw::droppedGlyphs(), 0);
   CHECK(countColour(g.bytes, 0) > 500);          // black ink present
   CHECK(countColour(g.bytes, 3) > 50);           // red: BAD badge and values
 }

@@ -4,6 +4,8 @@
 #include <WiFiNINA.h>
 #include <mbed.h>
 
+#include <string.h>
+
 #include "config.h"
 #include "secrets.h"
 #include "serial_log.h"
@@ -21,6 +23,7 @@ uint32_t g_lastSyncMs = 0;
 uint32_t g_epoch = 0;
 uint32_t g_epochAtMs = 0;
 int32_t g_rssi = 0;
+char g_firmware[16] = "?";
 rtos::Mutex g_ninaMutex;
 
 void startBackoff(uint32_t nowMs, const char* why) {
@@ -46,7 +49,8 @@ void net::begin() {
     return;
   }
   WiFi.setTimeout(cfg::WIFI_CONNECT_TIMEOUT_MS);
-  serial_log::event("net", WiFi.firmwareVersion());
+  strncpy(g_firmware, WiFi.firmwareVersion(), sizeof g_firmware - 1);
+  serial_log::event("net", g_firmware);
   g_state = State::Idle;
 }
 
@@ -64,23 +68,28 @@ void net::update(uint32_t nowMs) {
       g_state = State::Connecting;
       break;
 
-    case State::Connecting:
-      if (WiFi.status() == WL_CONNECTED) {
+    case State::Connecting: {
+      const uint8_t status = WiFi.status();
+      if (status == WL_CONNECTED) {
         g_state = State::Connected;
         g_backoffMs = cfg::WIFI_RETRY_MIN_MS;
         g_lastSyncMs = 0;
+        g_lastSyncMs = 0;
         logConnected();
-      } else if (nowMs - g_attemptStartMs > cfg::WIFI_CONNECT_WINDOW_MS) {
+      } else if (status == WL_CONNECT_FAILED || status == WL_NO_SSID_AVAIL ||
+                 nowMs - g_attemptStartMs > cfg::WIFI_CONNECT_WINDOW_MS) {
         WiFi.disconnect();
-        startBackoff(nowMs, "connect failed, retry in s=");
+        startBackoff(nowMs, status == WL_NO_SSID_AVAIL ? "network not found, retry in s=" : "connect failed, retry in s=");
       }
       break;
+    }
 
     case State::Connected:
       if (WiFi.status() != WL_CONNECTED) {
         g_rssi = 0;
         startBackoff(nowMs, "connection lost, retry in s=");
-      } else if (g_lastSyncMs == 0 || nowMs - g_lastSyncMs >= cfg::TIME_SYNC_INTERVAL_MS) {
+      } else if (g_epoch == 0 || nowMs - g_lastSyncMs >= cfg::TIME_SYNC_INTERVAL_MS) {
+        // Until the NINA's SNTP has answered once, ask at every poll; afterwards once a minute.
         g_lastSyncMs = nowMs;
         g_rssi = WiFi.RSSI();
         const uint32_t t = WiFi.getTime();
@@ -111,7 +120,7 @@ uint32_t net::epoch(uint32_t nowMs) {
 }
 
 int32_t net::rssi() { return g_rssi; }
-const char* net::firmwareVersion() { return WiFi.firmwareVersion(); }
+const char* net::firmwareVersion() { return g_firmware; }
 
 const char* net::stateName() {
   switch (g_state) {

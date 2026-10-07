@@ -9,6 +9,8 @@ namespace {
 bool startsWith(const char* s, const char* prefix) { return strncmp(s, prefix, strlen(prefix)) == 0; }
 
 // Advances the source until `token` has just been read. False at end of stream.
+// The mismatch fallback restarts at the token's first character, which is
+// exact only for tokens with no repeated prefix (true for "timeseries").
 bool skipPast(ByteSource& src, const char* token) {
   const size_t len = strlen(token);
   size_t matched = 0;

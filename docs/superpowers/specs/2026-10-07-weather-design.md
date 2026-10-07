@@ -64,15 +64,26 @@ the firmware and the host tests use the same copy. WiFiNINA 2.1.1 is pinned in
 ## Timing and robustness
 
 - `WiFi.begin()` is called with a 1 s connect timeout and the status is
-  polled from `loop()`; no 10 s block under the 8 s watchdog.
-- TLS handshake blocks 1-4 s inside the NINA call. The download loop kicks
-  the watchdog per chunk and gives up after 20 s without progress.
-- Fetch and e-paper refresh are both driven from `loop()`; they cannot overlap.
-  Lost PMS7003 bytes during a fetch are recovered by the parser's resync.
-- RAM budget: WiFiNINA + a ~1.5 KB extraction buffer + a small JsonDocument.
+  polled from `loop()` every 500 ms; a failed or absent network goes to
+  backoff at once. No 10 s block under the 8 s watchdog.
+- The fetch runs in an mbed worker thread (6 KB stack, below-normal
+  priority): TLS connect (10 s limit), download with a 5 s per-byte wait and
+  a 30 s overall deadline. All NINA traffic is serialized by a mutex;
+  `loop()` polls the module with `trylock` and skips a poll while a fetch
+  holds the module. The e-paper (SPI0) and the NINA (SPI1) are independent,
+  so a fetch may overlap a panel refresh.
+- If the worker is still busy 90 s after a fetch started, the NINA has
+  stopped answering (its SPI driver has no timeout); the sketch logs
+  `[wx] worker hung, rebooting` and resets, which also resets the module.
+- Lost PMS7003 bytes are recovered by the parser's resync; nothing in the
+  main thread waits on the network.
+- RAM budget: WiFiNINA, the worker stack, a 1.5 KB extraction buffer and a
+  small JsonDocument on the heap (~10 KB on top of the sensor firmware).
 - Failures (no WiFi, DNS, TLS, HTTP != 200, bad JSON, timeout) are counted
   and logged; the last good forecast stays until it is 3 h old. The station
   runs exactly as before without network.
+- NINA firmware must be 3.0.1 or newer for the api.met.no certificate chain;
+  1.4.8 fails at the TLS connect. The version is logged at boot.
 
 ## Tests
 

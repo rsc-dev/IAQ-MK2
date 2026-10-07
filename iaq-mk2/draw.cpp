@@ -37,11 +37,21 @@ void outlineRect(int x0, int y0, int x1, int y1, uint8_t colour) {
 
 int textWidth(const char* s, const sFONT& font) { return (int)strlen(s) * (int)font.Width; }
 
+static uint32_t g_droppedGlyphs = 0;
+uint32_t droppedGlyphs() { return g_droppedGlyphs; }
+void resetDroppedGlyphs() { g_droppedGlyphs = 0; }
+
 void text(int x, int y, const char* s, const sFONT& font, uint8_t fg, uint8_t bg) {
-  if (y < 0 || y + (int)font.Height > kHeight) return;
+  if (y < 0 || y + (int)font.Height > kHeight) {
+    g_droppedGlyphs += (uint32_t)strlen(s);
+    return;
+  }
   for (; *s != '\0'; ++s, x += (int)font.Width) {
     if (x < 0) continue;
-    if (x + (int)font.Width > kWidth) return;
+    if (x + (int)font.Width > kWidth) {
+      g_droppedGlyphs += (uint32_t)strlen(s);
+      return;
+    }
     char c = *s;
     if (c < ' ' || c > '~') c = '?';
     // Paint_DrawChar has the documented (foreground, background) order.

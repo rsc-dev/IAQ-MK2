@@ -12,7 +12,7 @@ bool moduleAvailable();
 bool connected();
 uint32_t epoch(uint32_t nowMs);     // Unix time now, 0 if unknown
 int32_t rssi();                     // last polled RSSI in dBm (0 when not connected)
-const char* firmwareVersion();
+const char* firmwareVersion();   // cached at begin(); safe to call from loop()
 const char* stateName();            // "no-module", "connecting", "connected", "retry"
 
 // Serializes NINA access between loop() and the weather worker thread.

@@ -298,8 +298,6 @@ worst valid metric; `WARMUP` when nothing is valid yet.
 
 ## Limitations and next steps
 
-- No clock: the header shows uptime, not time of day. WiFi + NTP (the NINA
-  module is unused) would give a real "last updated" stamp.
 - Values are instantaneous; add averaging for PM and CO2 before a long-term
   enclosure build.
 - The SEN0219 analog revision is not supported.

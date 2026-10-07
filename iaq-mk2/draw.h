@@ -31,4 +31,9 @@ void textCentered(int xCenter, int y, const char* s, const sFONT& font, uint8_t 
 // Small degree sign: a 3x3 ring with its top-left corner at (x, y).
 void degree(int x, int y, uint8_t colour);
 
+// Glyphs dropped at the right edge since the last reset; a layout that fits
+// keeps this at zero (checked by the dashboard tests).
+uint32_t droppedGlyphs();
+void resetDroppedGlyphs();
+
 }  // namespace draw

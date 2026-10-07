@@ -53,7 +53,6 @@ struct OutdoorReading {
   float windMs = 0.0f;
   char symbol[12] = "";      // short word for the met.no symbol code
   float rainNext6hMm = 0.0f;
-  uint32_t fetchedEpoch = 0;
   SensorState state = SensorState::NotReady;
 };
 

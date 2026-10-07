@@ -45,9 +45,11 @@ constexpr const char* WEATHER_PATH = "/weatherapi/locationforecast/2.0/compact?l
 constexpr const char* WEATHER_USER_AGENT = "IAQ-MK2/1.0 github.com/rsc-dev/IAQ-MK2";
 constexpr uint32_t WEATHER_INTERVAL_MS     = 3600000;   // MET Norway asks not to poll faster than Expires (~30 min)
 constexpr uint32_t WEATHER_RETRY_MS        = 600000;    // after a failed fetch
-constexpr uint32_t WEATHER_STALE_MS        = 10800000;  // 3 h without a good reply -> "--"
+constexpr uint32_t WEATHER_STALE_MS        = 10800000;  // 3 h without a good reply -> "no forecast"
 constexpr uint32_t WEATHER_READ_TIMEOUT_MS = 5000;      // no byte for this long aborts a fetch
 constexpr uint32_t WEATHER_FETCH_TIMEOUT_MS = 30000;    // whole request
+constexpr uint32_t WEATHER_TLS_CONNECT_TIMEOUT_MS = 10000;
+constexpr uint32_t WEATHER_WORKER_HANG_MS = 90000;       // worker still busy after this: the NINA stopped answering, reboot
 
 // ---- Warm-up and staleness ------------------------------------------------
 constexpr uint32_t CO2_WARMUP_MS = 180000;  // SEN0219: 1 min preheat nominal, 3 min for stable output
